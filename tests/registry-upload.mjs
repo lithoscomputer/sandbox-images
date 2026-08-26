@@ -16,6 +16,7 @@ const metadataFile = join(temporaryDirectory, "metadata.json");
 const input = Buffer.alloc(2560, "a");
 const digest = createHash("sha256").update(input).digest("hex");
 const uploadedChunks = [];
+let tokenRequests = 0;
 
 await writeFile(diffIdFile, `${digest}\n`);
 await writeFile(digestFile, `${digest}\n`);
@@ -23,6 +24,7 @@ await writeFile(digestFile, `${digest}\n`);
 const server = createServer(async (request, response) => {
   const url = new URL(request.url, `http://${request.headers.host}`);
   if (request.method === "GET" && url.pathname === "/token") {
+    tokenRequests += 1;
     response.writeHead(200, { "Content-Type": "application/json" });
     response.end(JSON.stringify({ token: "test-token" }));
     return;
@@ -96,6 +98,7 @@ try {
   const [exitCode] = await once(child, "exit");
   assert.equal(exitCode, 0, stderr);
   assert.equal(uploadedChunks.length, 3);
+  assert.equal(tokenRequests, 1);
   const metadata = JSON.parse(await readFile(metadataFile, "utf8"));
   assert.equal(metadata.diffId, `sha256:${digest}`);
   assert.equal(metadata.layer.digest, `sha256:${digest}`);

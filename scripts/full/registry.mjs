@@ -8,6 +8,8 @@ const registry = process.env.REGISTRY || "https://ghcr.io";
 const image = requiredEnv("IMAGE").toLowerCase();
 const actor = requiredEnv("GITHUB_ACTOR");
 const githubToken = requiredEnv("GITHUB_TOKEN");
+let cachedToken;
+let cachedTokenExpiresAt = 0;
 
 function requiredEnv(name) {
   const value = process.env[name];
@@ -23,14 +25,19 @@ function option(name) {
   return process.argv[index + 1];
 }
 
-async function token() {
+async function token(forceRefresh = false) {
+  if (!forceRefresh && cachedToken && Date.now() < cachedTokenExpiresAt) return cachedToken;
   const basic = Buffer.from(`${actor}:${githubToken}`).toString("base64");
   const response = await fetch(
     `${registry}/token?service=ghcr.io&scope=repository:${image}:pull,push`,
     { headers: { Authorization: `Basic ${basic}` } },
   );
   if (!response.ok) throw new Error(`GHCR authentication failed: ${response.status}`);
-  return (await response.json()).token;
+  const credentials = await response.json();
+  cachedToken = credentials.token;
+  const expiresIn = Number(credentials.expires_in);
+  cachedTokenExpiresAt = Date.now() + (Number.isFinite(expiresIn) ? expiresIn * 1000 : 60_000) - 30_000;
+  return cachedToken;
 }
 
 function absoluteLocation(location) {
@@ -39,13 +46,15 @@ function absoluteLocation(location) {
 }
 
 async function request(url, options = {}) {
-  const response = await fetch(url, {
+  const send = async (forceRefresh = false) => fetch(url, {
     ...options,
     headers: {
       ...options.headers,
-      Authorization: `Bearer ${await token()}`,
+      Authorization: `Bearer ${await token(forceRefresh)}`,
     },
   });
+  let response = await send();
+  if (response.status === 401) response = await send(true);
   if (!response.ok) {
     const body = await response.text();
     throw new Error(`${options.method || "GET"} ${url}: ${response.status} ${body}`);
@@ -116,7 +125,8 @@ async function uploadLayer() {
   const digestFile = option("--digest-file");
   const output = option("--output");
 
-  const uploadChunkSize = Number(process.env.UPLOAD_CHUNK_SIZE || 64 * 1024 * 1024);
+  // GHCR rejects PATCH request bodies larger than 4 MiB.
+  const uploadChunkSize = Number(process.env.UPLOAD_CHUNK_SIZE || 4 * 1024 * 1024);
   if (!Number.isSafeInteger(uploadChunkSize) || uploadChunkSize <= 0) {
     throw new Error("UPLOAD_CHUNK_SIZE must be a positive integer");
   }
