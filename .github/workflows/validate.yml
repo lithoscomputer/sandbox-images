@@ -13,7 +13,7 @@ jobs:
   repository:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Check shell scripts
         run: shellcheck scripts/slim/install.sh scripts/full/capture-layer.sh tests/verify-docs.sh tests/verify-image.sh
@@ -39,10 +39,10 @@ jobs:
           - ubuntu: "26.04"
             image_os: ubuntu26
     steps:
-      - uses: actions/checkout@v4
-      - uses: docker/setup-buildx-action@v3
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
       - name: Validate Ubuntu ${{ matrix.ubuntu }} build
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: Dockerfile.slim
