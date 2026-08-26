@@ -37,9 +37,13 @@ const server = createServer(async (request, response) => {
     for await (const chunk of request) chunks.push(chunk);
     const bytes = Buffer.concat(chunks);
     assert.equal(Number(request.headers["content-length"]), bytes.length);
+    const offset = uploadedChunks.reduce((total, chunk) => total + chunk.length, 0);
+    assert.equal(request.headers["content-range"], `${offset}-${offset + bytes.length - 1}`);
     uploadedChunks.push(bytes);
+    const uploadedSize = offset + bytes.length;
     response.writeHead(202, {
       Location: `http://${request.headers.host}/upload/1?offset=${uploadedChunks.length}`,
+      Range: `bytes=0-${uploadedSize - 1}`,
     });
     response.end();
     return;

@@ -57,6 +57,28 @@ async function beginUpload() {
   return request(`${registry}/v2/${image}/blobs/uploads/`, { method: "POST" });
 }
 
+async function patchUpload(location, bytes, offset) {
+  const end = offset + bytes.length - 1;
+  const response = await request(location, {
+    method: "PATCH",
+    body: bytes,
+    duplex: "half",
+    headers: {
+      "Content-Length": String(bytes.length),
+      "Content-Range": `${offset}-${end}`,
+      "Content-Type": "application/octet-stream",
+    },
+  });
+  const range = response.headers.get("range");
+  if (range) {
+    const match = /^(?:bytes=)?0-(\d+)$/.exec(range);
+    if (!match || Number(match[1]) !== end) {
+      throw new Error(`Registry accepted an unexpected upload range: ${range}; expected 0-${end}`);
+    }
+  }
+  return response;
+}
+
 async function manifestExists() {
   const tag = option("--tag");
   const response = await fetch(`${registry}/v2/${image}/manifests/${encodeURIComponent(tag)}`, {
@@ -79,12 +101,7 @@ async function manifestExists() {
 async function uploadBytes(bytes) {
   const digest = `sha256:${createHash("sha256").update(bytes).digest("hex")}`;
   let response = await beginUpload();
-  response = await request(absoluteLocation(response.headers.get("location")), {
-    method: "PATCH",
-    body: bytes,
-    duplex: "half",
-    headers: { "Content-Type": "application/octet-stream" },
-  });
+  response = await patchUpload(absoluteLocation(response.headers.get("location")), bytes, 0);
   const location = new URL(absoluteLocation(response.headers.get("location")));
   location.searchParams.set("digest", digest);
   await request(location, {
@@ -114,14 +131,7 @@ async function uploadLayer() {
     if (pendingSize === 0) return;
     const bytes = Buffer.concat(pendingChunks, pendingSize);
     const previousBytes = bytesRead;
-    response = await request(uploadLocation, {
-      method: "PATCH",
-      body: bytes,
-      headers: {
-        "Content-Length": String(bytes.length),
-        "Content-Type": "application/octet-stream",
-      },
-    });
+    response = await patchUpload(uploadLocation, bytes, bytesRead);
     uploadLocation = absoluteLocation(response.headers.get("location"));
     bytesRead += bytes.length;
     pendingChunks = [];
