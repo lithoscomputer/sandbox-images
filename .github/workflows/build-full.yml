@@ -49,7 +49,7 @@ jobs:
     steps:
       # This must remain the only third-party code executed before capture.
       # The checkout directory is excluded from the image.
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -60,8 +60,10 @@ jobs:
           owner="${GITHUB_REPOSITORY_OWNER,,}"
           version="$(sed -n -E 's/^ImageVersion="?([^"[:space:]]+)"?$/\1/p' /etc/environment)"
           test -n "$version"
-          echo "IMAGE=${owner}/gha-ubuntu-${{ matrix.ubuntu }}-full" >>"$GITHUB_ENV"
+          echo "IMAGE=${owner}/gha-ubuntu-${MATRIX_UBUNTU}-full" >>"$GITHUB_ENV"
           echo "IMAGE_VERSION=${version}" >>"$GITHUB_ENV"
+        env:
+          MATRIX_UBUNTU: ${{ matrix.ubuntu }}
 
       - name: Check for the runner version in GHCR
         id: existing
