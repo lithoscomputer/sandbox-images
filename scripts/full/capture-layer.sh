@@ -70,6 +70,7 @@ esac
 uncompressed_sha="$RUNNER_TEMP/${name}.diff-id"
 compressed_sha="$RUNNER_TEMP/${name}.digest"
 
+set +e
 sudo tar "${tar_args[@]}" \
   | tee >(sha256sum | awk '{print $1}' >"$uncompressed_sha") \
   | gzip -1 -c \
@@ -78,3 +79,19 @@ sudo tar "${tar_args[@]}" \
       --diff-id-file "$uncompressed_sha" \
       --digest-file "$compressed_sha" \
       --output "$metadata_dir/${name}.json"
+pipeline_status=("${PIPESTATUS[@]}")
+set -e
+
+# A live runner can change while tar reads it. GNU tar uses status 1 for that
+# recoverable condition and status 2 for a fatal archive error.
+if (( pipeline_status[0] > 1 )); then
+  exit "${pipeline_status[0]}"
+fi
+for status in "${pipeline_status[@]:1}"; do
+  if (( status != 0 )); then
+    exit "$status"
+  fi
+done
+if (( pipeline_status[0] == 1 )); then
+  echo "Archive completed with files that changed during capture" >&2
+fi
