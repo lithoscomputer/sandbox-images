@@ -1,0 +1,92 @@
+name: Capture full images
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/build-full.yml
+      - scripts/full/**
+  schedule:
+    # Runner images update weekly, but deployment can take several days.
+    # Check daily and skip capture when the runner ImageVersion already exists.
+    - cron: "47 8 * * *"
+  workflow_dispatch:
+    inputs:
+      ubuntu:
+        description: Ubuntu release to capture
+        type: choice
+        options: [all, "22.04", "24.04", "26.04"]
+        default: all
+      force:
+        description: Capture even if this runner ImageVersion already exists
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: full-runner-capture
+  cancel-in-progress: false
+
+jobs:
+  capture:
+    name: Ubuntu ${{ matrix.ubuntu }} full
+    runs-on: ubuntu-${{ matrix.ubuntu }}
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        ubuntu: ${{ fromJSON(github.event_name == 'workflow_dispatch' && inputs.ubuntu != 'all' && format('["{0}"]', inputs.ubuntu) || '["22.04","24.04","26.04"]') }}
+
+    env:
+      UBUNTU_VERSION: ${{ matrix.ubuntu }}
+      LAYER_METADATA_DIR: ${{ github.workspace }}/.layer-metadata
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    steps:
+      # This must remain the only third-party code executed before capture.
+      # The checkout directory is excluded from the image.
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set target image
+        id: target
+        shell: bash
+        run: |
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+          version="$(sed -n -E 's/^ImageVersion="?([^"[:space:]]+)"?$/\1/p' /etc/environment)"
+          test -n "$version"
+          echo "IMAGE=${owner}/gha-ubuntu-${{ matrix.ubuntu }}-full" >>"$GITHUB_ENV"
+          echo "IMAGE_VERSION=${version}" >>"$GITHUB_ENV"
+
+      - name: Check for the runner version in GHCR
+        id: existing
+        run: node scripts/full/registry.mjs manifest-exists --tag "$IMAGE_VERSION"
+
+      - name: Capture root filesystem
+        if: steps.existing.outputs.exists != 'true' || github.event_name == 'push' || inputs.force
+        run: scripts/full/capture-layer.sh 00-root
+
+      - name: Capture /usr/local
+        if: steps.existing.outputs.exists != 'true' || github.event_name == 'push' || inputs.force
+        run: scripts/full/capture-layer.sh 10-usr-local
+
+      - name: Capture /opt
+        if: steps.existing.outputs.exists != 'true' || github.event_name == 'push' || inputs.force
+        run: scripts/full/capture-layer.sh 20-opt
+
+      - name: Capture hosted tool cache
+        if: steps.existing.outputs.exists != 'true' || github.event_name == 'push' || inputs.force
+        run: scripts/full/capture-layer.sh 30-toolcache
+
+      - name: Publish image manifest
+        if: steps.existing.outputs.exists != 'true' || github.event_name == 'push' || inputs.force
+        run: node scripts/full/registry.mjs publish --metadata-dir "$LAYER_METADATA_DIR"
+
+      - name: Report unchanged image
+        if: steps.existing.outputs.exists == 'true' && github.event_name != 'push' && !inputs.force
+        run: echo "ghcr.io/${IMAGE}:${IMAGE_VERSION} already exists; capture skipped"

@@ -1,0 +1,35 @@
+# syntax=docker/dockerfile:1.7
+
+ARG UBUNTU_VERSION
+FROM ubuntu:${UBUNTU_VERSION}
+
+ARG UBUNTU_VERSION
+ARG APT_SNAPSHOT
+ARG TARGETARCH
+ARG GITHUB_REPOSITORY
+ARG IMAGE_OS
+ARG NODE20_VERSION=20.20.2
+ARG NODE22_VERSION=22.23.2
+ARG NODE24_VERSION=24.19.0
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    ImageOS=${IMAGE_OS} \
+    IMAGE_OS=${IMAGE_OS} \
+    AGENT_TOOLSDIRECTORY=/opt/hostedtoolcache \
+    RUNNER_TOOL_CACHE=/opt/hostedtoolcache \
+    RUN_TOOL_CACHE=/opt/hostedtoolcache \
+    ACT_TOOLSDIRECTORY=/opt/acttoolcache
+
+COPY scripts/slim/install.sh /usr/local/lib/gha-image/install.sh
+
+RUN /usr/local/lib/gha-image/install.sh \
+    && rm -rf /usr/local/lib/gha-image
+
+LABEL org.opencontainers.image.title="GitHub Actions Ubuntu slim image" \
+      org.opencontainers.image.description="Small x86-64 Ubuntu environment compatible with common GitHub Actions" \
+      org.opencontainers.image.source="https://github.com/${GITHUB_REPOSITORY}" \
+      io.lithos.image.flavor="slim" \
+      io.lithos.image.ubuntu-version="${UBUNTU_VERSION}"
+
+WORKDIR /workspace
+CMD ["bash"]
