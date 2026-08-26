@@ -3,9 +3,8 @@
 import { createHash } from "node:crypto";
 import { appendFile, readFile, readdir, writeFile } from "node:fs/promises";
 import process from "node:process";
-import { Transform } from "node:stream";
 
-const registry = "https://ghcr.io";
+const registry = process.env.REGISTRY || "https://ghcr.io";
 const image = requiredEnv("IMAGE").toLowerCase();
 const actor = requiredEnv("GITHUB_ACTOR");
 const githubToken = requiredEnv("GITHUB_TOKEN");
@@ -100,37 +99,59 @@ async function uploadLayer() {
   const digestFile = option("--digest-file");
   const output = option("--output");
 
+  const uploadChunkSize = Number(process.env.UPLOAD_CHUNK_SIZE || 64 * 1024 * 1024);
+  if (!Number.isSafeInteger(uploadChunkSize) || uploadChunkSize <= 0) {
+    throw new Error("UPLOAD_CHUNK_SIZE must be a positive integer");
+  }
+  const progressInterval = 512 * 1024 * 1024;
   let bytesRead = 0;
-  const counter = new Transform({
-    transform(chunk, encoding, callback) {
-      bytesRead += chunk.length;
-      if (bytesRead % (512 * 1024 * 1024) < chunk.length) {
-        console.log(`Uploaded ${Math.round(bytesRead / 1024 / 1024)} MiB`);
-      }
-      callback(null, chunk);
-    },
-  });
-
-  // The digest files are completed by the two tee processes when stdin closes.
+  let pendingChunks = [];
+  let pendingSize = 0;
   let response = await beginUpload();
-  process.stdin.pipe(counter);
-  try {
-    response = await request(absoluteLocation(response.headers.get("location")), {
+  let uploadLocation = absoluteLocation(response.headers.get("location"));
+
+  async function flushChunk() {
+    if (pendingSize === 0) return;
+    const bytes = Buffer.concat(pendingChunks, pendingSize);
+    const previousBytes = bytesRead;
+    response = await request(uploadLocation, {
       method: "PATCH",
-      body: counter,
-      duplex: "half",
-      headers: { "Content-Type": "application/octet-stream" },
+      body: bytes,
+      headers: {
+        "Content-Length": String(bytes.length),
+        "Content-Type": "application/octet-stream",
+      },
     });
+    uploadLocation = absoluteLocation(response.headers.get("location"));
+    bytesRead += bytes.length;
+    pendingChunks = [];
+    pendingSize = 0;
+    if (Math.floor(previousBytes / progressInterval) < Math.floor(bytesRead / progressInterval)) {
+      console.log(`Uploaded ${Math.round(bytesRead / 1024 / 1024)} MiB`);
+    }
+  }
+
+  try {
+    for await (const chunk of process.stdin) {
+      let offset = 0;
+      while (offset < chunk.length) {
+        const length = Math.min(uploadChunkSize - pendingSize, chunk.length - offset);
+        pendingChunks.push(chunk.subarray(offset, offset + length));
+        pendingSize += length;
+        offset += length;
+        if (pendingSize === uploadChunkSize) await flushChunk();
+      }
+    }
+    await flushChunk();
   } catch (error) {
-    process.stdin.unpipe(counter);
-    counter.destroy();
     process.stdin.destroy();
     throw error;
   }
 
+  // The digest files are completed by the two tee processes when stdin closes.
   const digest = `sha256:${await readCompletedDigest(digestFile)}`;
   const diffId = `sha256:${await readCompletedDigest(diffIdFile)}`;
-  const location = new URL(absoluteLocation(response.headers.get("location")));
+  const location = new URL(uploadLocation);
   location.searchParams.set("digest", digest);
   await request(location, {
     method: "PUT",

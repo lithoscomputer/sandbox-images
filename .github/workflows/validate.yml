@@ -26,6 +26,9 @@ jobs:
       - name: Check JavaScript
         run: node --check scripts/full/registry.mjs
 
+      - name: Test registry uploader
+        run: node tests/registry-upload.mjs
+
       - name: Check executable files
         run: test -x scripts/slim/install.sh && test -x scripts/full/capture-layer.sh && test -x tests/verify-docs.sh && test -x tests/verify-image.sh
 
