@@ -28,7 +28,7 @@ permissions:
 
 concurrency:
   group: full-runner-capture
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   capture:
