@@ -4,7 +4,8 @@ set -Eeuo pipefail
 expected_version="${1:?expected Ubuntu version is required}"
 
 test "$(dpkg --print-architecture)" = "amd64"
-test "$(. /etc/os-release && echo "$VERSION_ID")" = "$expected_version"
+actual_version="$(sed -n -E 's/^VERSION_ID="?([^"[:space:]]+)"?$/\1/p' /etc/os-release)"
+test "$actual_version" = "$expected_version"
 
 for command in bash curl git git-lfs jq node npm python python3 sudo tar unzip wget zip zstd; do
   command -v "$command" >/dev/null || {
