@@ -3,6 +3,7 @@
 import { createHash } from "node:crypto";
 import { appendFile, readFile, readdir, writeFile } from "node:fs/promises";
 import process from "node:process";
+import { Transform } from "node:stream";
 
 const registry = "https://ghcr.io";
 const image = requiredEnv("IMAGE").toLowerCase();
@@ -100,21 +101,32 @@ async function uploadLayer() {
   const output = option("--output");
 
   let bytesRead = 0;
-  process.stdin.on("data", (chunk) => {
-    bytesRead += chunk.length;
-    if (bytesRead % (512 * 1024 * 1024) < chunk.length) {
-      console.log(`Uploaded ${Math.round(bytesRead / 1024 / 1024)} MiB`);
-    }
+  const counter = new Transform({
+    transform(chunk, encoding, callback) {
+      bytesRead += chunk.length;
+      if (bytesRead % (512 * 1024 * 1024) < chunk.length) {
+        console.log(`Uploaded ${Math.round(bytesRead / 1024 / 1024)} MiB`);
+      }
+      callback(null, chunk);
+    },
   });
 
   // The digest files are completed by the two tee processes when stdin closes.
   let response = await beginUpload();
-  response = await request(absoluteLocation(response.headers.get("location")), {
-    method: "PATCH",
-    body: process.stdin,
-    duplex: "half",
-    headers: { "Content-Type": "application/octet-stream" },
-  });
+  process.stdin.pipe(counter);
+  try {
+    response = await request(absoluteLocation(response.headers.get("location")), {
+      method: "PATCH",
+      body: counter,
+      duplex: "half",
+      headers: { "Content-Type": "application/octet-stream" },
+    });
+  } catch (error) {
+    process.stdin.unpipe(counter);
+    counter.destroy();
+    process.stdin.destroy();
+    throw error;
+  }
 
   const digest = `sha256:${await readCompletedDigest(digestFile)}`;
   const diffId = `sha256:${await readCompletedDigest(diffIdFile)}`;
