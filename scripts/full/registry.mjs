@@ -174,6 +174,7 @@ async function publish() {
   if (metadata.length === 0) throw new Error("No layer metadata was found");
 
   const environment = readRunnerEnvironment(await readFile("/etc/environment", "utf8"));
+  environment.entries.push("ACT_TOOLSDIRECTORY=/opt/acttoolcache");
   const created = new Date().toISOString();
   const version = environment.values.ImageVersion || process.env.GITHUB_SHA;
   const source = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}`;

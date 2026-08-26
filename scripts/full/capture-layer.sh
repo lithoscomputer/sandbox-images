@@ -16,6 +16,9 @@ tar_args=(
 
 case "$name" in
   00-root)
+    # These paths are part of the container contract, but they are not present
+    # on every hosted runner filesystem.
+    sudo install -d -m 0777 /github /workspace
     workspace="${GITHUB_WORKSPACE#/}"
     tar_args+=(
       --one-file-system
@@ -52,6 +55,7 @@ case "$name" in
     tar_args+=(usr/local)
     ;;
   20-opt)
+    sudo ln -sfn hostedtoolcache /opt/acttoolcache
     tar_args+=(--exclude='opt/hostedtoolcache/*' opt)
     ;;
   30-toolcache)
