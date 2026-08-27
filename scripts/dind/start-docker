@@ -1,0 +1,200 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+provider_wait_seconds=${DOCKER_PROVIDER_WAIT_SECONDS:-10}
+start_wait_seconds=${DOCKER_START_WAIT_SECONDS:-30}
+diagnostic_log=${DOCKER_DIAGNOSTIC_LOG:-/tmp/docker-start.log}
+docker_log=${DOCKER_LOG_PATH:-/var/log/docker.log}
+
+case "$provider_wait_seconds" in
+  '' | *[!0-9]*)
+    echo "DOCKER_PROVIDER_WAIT_SECONDS must be a non-negative integer." >&2
+    exit 2
+    ;;
+esac
+
+case "$start_wait_seconds" in
+  '' | *[!0-9]*)
+    echo "DOCKER_START_WAIT_SECONDS must be a non-negative integer." >&2
+    exit 2
+    ;;
+esac
+
+prepare_diagnostic_log() {
+  if [ -z "$diagnostic_log" ]; then
+    return
+  fi
+
+  diagnostic_directory=$(dirname "$diagnostic_log")
+  if ! mkdir -p "$diagnostic_directory" 2> /dev/null \
+    || ! : > "$diagnostic_log" 2> /dev/null; then
+    echo "Could not create Docker diagnostic log: $diagnostic_log" >&2
+    diagnostic_log=
+  fi
+}
+
+append_record() {
+  if [ -n "$diagnostic_log" ]; then
+    printf '%s\n' "$1" >> "$diagnostic_log" 2> /dev/null || true
+  fi
+}
+
+record_line() {
+  line=${1-}
+  printf '%s\n' "$line" >&2
+  append_record "$line"
+}
+
+record_command() {
+  label=$1
+  shift
+  record_line "== $label =="
+  if [ -n "$diagnostic_log" ]; then
+    "$@" 2>&1 | tee -a "$diagnostic_log" >&2 || true
+  else
+    "$@" >&2 2>&1 || true
+  fi
+}
+
+docker_ready() {
+  docker info > /dev/null 2>&1
+}
+
+wait_for_docker() {
+  wait_limit=$1
+  docker_wait_attempts=0
+  while [ "$docker_wait_attempts" -lt "$wait_limit" ]; do
+    sleep 1
+    docker_wait_attempts=$((docker_wait_attempts + 1))
+    if docker_ready; then
+      return 0
+    fi
+  done
+  return 1
+}
+
+report_ready() {
+  ready_source=$1
+  ready_wait_seconds=$2
+  if docker info; then
+    ready_record="docker-start result=ready source=$ready_source wait_seconds=$ready_wait_seconds"
+    printf '%s\n' "$ready_record"
+    append_record "$ready_record"
+    exit 0
+  fi
+
+  collect_failure_diagnostics "readiness-lost" "$ready_source" "not-called"
+  exit 1
+}
+
+collect_failure_diagnostics() {
+  failure_reason=$1
+  startup_source=$2
+  service_start_status=$3
+
+  if [ -w /proc/sys/net/ipv4/ip_forward ]; then
+    ip_forward_writable=yes
+  else
+    ip_forward_writable=no
+  fi
+
+  if service docker status > /dev/null 2>&1; then
+    docker_service_status=running
+  else
+    docker_service_status=not-running
+  fi
+
+  if pgrep -x dockerd > /dev/null 2>&1; then
+    dockerd_process_status=present
+  else
+    dockerd_process_status=absent
+  fi
+
+  if command -v findmnt > /dev/null 2>&1; then
+    proc_sys_options=$(findmnt -n -T /proc/sys -o OPTIONS 2> /dev/null || printf unavailable)
+  else
+    proc_sys_options=unavailable
+  fi
+
+  record_line "Docker daemon startup failed; collecting diagnostics."
+  record_line "== host and operating system =="
+  record_line "timestamp=$(date -u '+%Y-%m-%dT%H:%M:%SZ' 2> /dev/null || printf unavailable)"
+  record_line "hostname=$(hostname 2> /dev/null || printf unavailable)"
+  record_line "kernel=$(uname -a 2> /dev/null || printf unavailable)"
+  if [ -r /etc/os-release ]; then
+    record_command "operating system (/etc/os-release)" sed -n p /etc/os-release
+  else
+    record_line "operating system (/etc/os-release)=unavailable"
+  fi
+
+  if command -v findmnt > /dev/null 2>&1; then
+    record_command "/proc/sys mount options" \
+      findmnt -T /proc/sys -o TARGET,SOURCE,FSTYPE,OPTIONS
+  else
+    record_line "/proc/sys mount options=unavailable (findmnt is not installed)"
+  fi
+  record_line "ip_forward_writable=$ip_forward_writable"
+
+  if [ -r /proc/self/status ]; then
+    record_command "process capabilities from /proc/self/status" \
+      awk '/^Cap(Inh|Prm|Eff|Bnd|Amb):/ { print }' /proc/self/status
+  else
+    record_line "process capabilities from /proc/self/status=unavailable"
+  fi
+
+  record_command "Docker daemon status" docker info
+  record_command "Docker service status" service docker status
+  record_command "Docker process status" \
+    sh -c "ps -ef 2>/dev/null | grep '[d]ockerd' || true"
+
+  if [ -e /var/lib/docker ]; then
+    record_command "filesystem type for /var/lib/docker" \
+      stat -f -c 'filesystem_type=%T' /var/lib/docker
+  else
+    record_line "filesystem type for /var/lib/docker=unavailable (path does not exist)"
+  fi
+
+  if [ -r "$docker_log" ]; then
+    record_command "full $docker_log" sed -n p "$docker_log"
+  else
+    record_line "full $docker_log=unavailable (file is not readable)"
+  fi
+
+  record_line "docker-start result=failed reason=$failure_reason source=$startup_source service_start=$service_start_status ip_forward_writable=$ip_forward_writable service=$docker_service_status dockerd=$dockerd_process_status proc_sys_options=$proc_sys_options log=${diagnostic_log:-unavailable}"
+}
+
+prepare_diagnostic_log
+
+if docker_ready; then
+  report_ready already-running 0
+fi
+
+# A sandbox provider can start dockerd shortly after the command begins. Give
+# it a brief grace period before starting a second daemon through the service.
+if wait_for_docker "$provider_wait_seconds"; then
+  report_ready provider-started "$docker_wait_attempts"
+fi
+
+# A sandbox can inherit a soft nofile limit above the hard limit that Docker's
+# SysV init script sets. Lower it first so that update is valid.
+if ! ulimit -S -n 1024; then
+  collect_failure_diagnostics nofile-limit-rejected service-not-called not-called
+  exit 1
+fi
+
+if service docker start; then
+  service_start_status=succeeded
+else
+  service_start_status=failed
+fi
+
+if docker_ready; then
+  report_ready script-started 0
+fi
+
+if wait_for_docker "$start_wait_seconds"; then
+  report_ready script-started "$docker_wait_attempts"
+fi
+
+collect_failure_diagnostics daemon-not-ready service-attempted "$service_start_status"
+exit 1

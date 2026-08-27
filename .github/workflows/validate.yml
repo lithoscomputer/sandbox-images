@@ -23,7 +23,7 @@ jobs:
           persist-credentials: false
 
       - name: Check shell scripts
-        run: shellcheck scripts/slim/install.sh scripts/full/capture-layer.sh tests/verify-docs.sh tests/verify-image.sh
+        run: shellcheck scripts/slim/install.sh scripts/dind/install.sh scripts/dind/start-docker scripts/chrome/install.sh scripts/full/capture-layer.sh tests/verify-docs.sh tests/verify-image.sh
 
       - name: Check image selection documentation
         run: tests/verify-docs.sh
@@ -35,30 +35,43 @@ jobs:
         run: node tests/registry-upload.mjs
 
       - name: Check executable files
-        run: test -x scripts/slim/install.sh && test -x scripts/full/capture-layer.sh && test -x tests/verify-docs.sh && test -x tests/verify-image.sh
+        run: test -x scripts/slim/install.sh && test -x scripts/dind/install.sh && test -x scripts/dind/start-docker && test -x scripts/chrome/install.sh && test -x scripts/full/capture-layer.sh && test -x tests/verify-docs.sh && test -x tests/verify-image.sh
 
   dockerfile:
-    name: Dockerfile check (${{ matrix.ubuntu }})
+    name: Dockerfile check (${{ matrix.ubuntu }} ${{ matrix.flavor }})
     runs-on: ubuntu-24.04
     strategy:
       matrix:
         include:
           - ubuntu: "22.04"
             image_os: ubuntu22
+            flavor: slim
           - ubuntu: "24.04"
             image_os: ubuntu24
+            flavor: slim
+          - ubuntu: "24.04"
+            image_os: ubuntu24
+            flavor: dind
+          - ubuntu: "24.04"
+            image_os: ubuntu24
+            flavor: chrome
+          - ubuntu: "24.04"
+            image_os: ubuntu24
+            flavor: dind-chrome
           - ubuntu: "26.04"
             image_os: ubuntu26
+            flavor: slim
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
-      - name: Validate Ubuntu ${{ matrix.ubuntu }} build
+      - name: Validate Ubuntu ${{ matrix.ubuntu }} ${{ matrix.flavor }} build
         uses: docker/build-push-action@53b7df96c91f9c12dcc8a07bcb9ccacbed38856a # v7.3.0
         with:
           context: .
           file: Dockerfile.slim
+          target: ${{ matrix.flavor }}
           platforms: linux/amd64
           call: check
           build-args: |

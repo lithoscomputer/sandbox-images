@@ -23,7 +23,9 @@ if [[ -n "${APT_SNAPSHOT:-}" ]]; then
   # signature still authenticates this one bootstrap transaction. All later
   # HTTPS requests use normal certificate verification.
   apt-get -o Acquire::https::Verify-Peer=false update
-  apt-get -o Acquire::https::Verify-Peer=false install -y --no-install-recommends ca-certificates
+  DEBIAN_FRONTEND=noninteractive apt-get \
+    -o Acquire::https::Verify-Peer=false \
+    install -y --no-install-recommends ca-certificates
 fi
 
 packages=(
@@ -35,18 +37,23 @@ packages=(
   git
   git-lfs
   gnupg
+  iproute2
   jq
   locales
   openssh-client
   pipx
+  procps
   python3
+  python3-jsonschema
   python3-pip
   python3-venv
+  ripgrep
   rsync
   shellcheck
   sudo
   tar
   unzip
+  util-linux
   wget
   xz-utils
   zip
@@ -54,8 +61,34 @@ packages=(
 )
 
 apt-get update
-apt-get upgrade -y
-apt-get install -y --no-install-recommends "${packages[@]}"
+DEBIAN_FRONTEND=noninteractive apt-get upgrade -y
+DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "${packages[@]}"
+
+gh_version="${GH_VERSION:?GH_VERSION is required}"
+gh_archive="/tmp/gh_${gh_version}_linux_amd64.tar.gz"
+curl --fail --location --silent --show-error --retry 3 \
+  "https://github.com/cli/cli/releases/download/v${gh_version}/gh_${gh_version}_linux_amd64.tar.gz" \
+  --output "$gh_archive"
+echo "${GH_SHA256:?GH_SHA256 is required}  $gh_archive" | sha256sum --check --strict
+python3 - "$gh_archive" "/usr/local/bin/gh" "$gh_version" <<'PY'
+import os
+import shutil
+import sys
+import tarfile
+
+archive, destination, version = sys.argv[1:]
+member_name = f"gh_{version}_linux_amd64/bin/gh"
+with tarfile.open(archive, "r:gz") as source:
+    member = source.getmember(member_name)
+    if not member.isfile():
+        raise RuntimeError(f"{member_name} is not a regular file")
+    with source.extractfile(member) as input_file, open(destination, "wb") as output_file:
+        if input_file is None:
+            raise RuntimeError(f"could not read {member_name}")
+        shutil.copyfileobj(input_file, output_file)
+os.chmod(destination, 0o755)
+PY
+rm -f "$gh_archive"
 
 ln -sf "$(command -v python3)" /usr/local/bin/python
 git config --system --add safe.directory '*'
@@ -118,6 +151,7 @@ done
 
 ubuntu_major="${UBUNTU_VERSION%%.*}"
 cat >>/etc/environment <<EOF
+LANG=C.UTF-8
 ImageOS=ubuntu${ubuntu_major}
 IMAGE_OS=ubuntu${ubuntu_major}
 LSB_RELEASE=${UBUNTU_VERSION}

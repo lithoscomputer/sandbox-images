@@ -2,20 +2,72 @@
 set -Eeuo pipefail
 
 expected_version="${1:?expected Ubuntu version is required}"
+expected_flavor="${2:-slim}"
 
 test "$(dpkg --print-architecture)" = "amd64"
 actual_version="$(sed -n -E 's/^VERSION_ID="?([^"[:space:]]+)"?$/\1/p' /etc/os-release)"
 test "$actual_version" = "$expected_version"
 
-for command in bash curl git git-lfs jq node npm python python3 sudo tar unzip wget zip zstd; do
+for command in bash curl gh git git-lfs ip jq node npm ps python python3 rg ss sudo tar unzip wget zip zstd; do
   command -v "$command" >/dev/null || {
     echo "Missing command: $command" >&2
     exit 1
   }
 done
 
+test "${LANG:-}" = "C.UTF-8"
+test -z "${LC_ALL+x}"
+python3 -c 'import jsonschema'
+findmnt --version >/dev/null
+
 test -d /opt/hostedtoolcache
 test -w /opt/hostedtoolcache
 test -x /opt/hostedtoolcache/node/20.20.2/x64/bin/node
 test -x /opt/hostedtoolcache/node/22.23.2/x64/bin/node
 test -x /opt/hostedtoolcache/node/24.19.0/x64/bin/node
+
+verify_dind() {
+  for command in containerd docker dockerd fuse-overlayfs start-docker; do
+    command -v "$command" >/dev/null || {
+      echo "Missing dind command: $command" >&2
+      exit 1
+    }
+  done
+  docker buildx version >/dev/null
+  docker compose version >/dev/null
+  test "${DOCKER_PROVIDER_WAIT_SECONDS:-}" = 10
+  test "${DOCKER_START_WAIT_SECONDS:-}" = 30
+  test "${DOCKER_DIAGNOSTIC_LOG:-}" = /tmp/docker-start.log
+  test "${DOCKER_LOG_PATH:-}" = /var/log/docker.log
+}
+
+verify_chrome() {
+  for command in agent-browser chrome ffmpeg google-chrome google-chrome-stable playwright-mcp; do
+    command -v "$command" >/dev/null || {
+      echo "Missing Chrome command: $command" >&2
+      exit 1
+    }
+  done
+  test "${CHROME_BIN:-}" = /usr/local/bin/chrome
+  test "${AGENT_BROWSER_ENGINE:-}" = chrome
+  test "${AGENT_BROWSER_EXECUTABLE_PATH:-}" = /usr/local/bin/chrome
+  test "${AGENT_BROWSER_CONTENT_BOUNDARIES:-}" = 1
+  test "${AGENT_BROWSER_MAX_OUTPUT:-}" = 50000
+  chrome --version
+  agent-browser --version
+  playwright-mcp --help >/dev/null
+}
+
+case "$expected_flavor" in
+  slim) ;;
+  dind) verify_dind ;;
+  chrome) verify_chrome ;;
+  dind-chrome)
+    verify_dind
+    verify_chrome
+    ;;
+  *)
+    echo "Unknown image flavor: $expected_flavor" >&2
+    exit 2
+    ;;
+esac

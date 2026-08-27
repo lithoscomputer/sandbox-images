@@ -1,18 +1,20 @@
 # syntax=docker/dockerfile:1.7
 
 ARG UBUNTU_VERSION
-FROM ubuntu:${UBUNTU_VERSION}
+FROM ubuntu:${UBUNTU_VERSION} AS slim
 
 ARG UBUNTU_VERSION
 ARG APT_SNAPSHOT
 ARG TARGETARCH
 ARG GITHUB_REPOSITORY
 ARG IMAGE_OS
+ARG GH_VERSION=2.89.0
+ARG GH_SHA256=d0422caade520530e76c1c558da47daebaa8e1203d6b7ff10ad7d6faba3490d8
 ARG NODE20_VERSION=20.20.2
 ARG NODE22_VERSION=22.23.2
 ARG NODE24_VERSION=24.19.0
 
-ENV DEBIAN_FRONTEND=noninteractive \
+ENV LANG=C.UTF-8 \
     ImageOS=${IMAGE_OS} \
     IMAGE_OS=${IMAGE_OS} \
     AGENT_TOOLSDIRECTORY=/opt/hostedtoolcache \
@@ -33,3 +35,77 @@ LABEL org.opencontainers.image.title="GitHub Actions Ubuntu slim image" \
 
 WORKDIR /workspace
 CMD ["bash"]
+
+FROM slim AS chrome
+
+ARG UBUNTU_VERSION
+ARG TARGETARCH
+ARG AGENT_BROWSER_VERSION=0.33.1
+ARG PLAYWRIGHT_MCP_VERSION=0.0.78
+ARG CHROME_FOR_TESTING_VERSION=151.0.7922.71
+ARG CHROME_FOR_TESTING_SHA256=6bd04aab53fba1544ce6027d9daddb24137295033124a61ecdf9840d785792e9
+
+ENV CHROME_BIN=/usr/local/bin/chrome \
+    AGENT_BROWSER_ENGINE=chrome \
+    AGENT_BROWSER_EXECUTABLE_PATH=/usr/local/bin/chrome \
+    AGENT_BROWSER_CONTENT_BOUNDARIES=1 \
+    AGENT_BROWSER_MAX_OUTPUT=50000
+
+COPY scripts/chrome/install.sh /usr/local/lib/gha-image/install-chrome.sh
+
+RUN /usr/local/lib/gha-image/install-chrome.sh \
+    && rm -rf /usr/local/lib/gha-image
+
+LABEL org.opencontainers.image.title="GitHub Actions Ubuntu Chrome image" \
+      org.opencontainers.image.description="Ubuntu environment for GitHub Actions with Chrome and browser testing tools" \
+      io.lithos.image.flavor="chrome"
+
+FROM slim AS dind
+
+ARG UBUNTU_VERSION
+ARG TARGETARCH
+ARG DOCKER_VERSION=5:28.3.3-1~ubuntu.24.04~noble
+ARG CONTAINERD_VERSION=1.7.27-1
+ARG DOCKER_BUILDX_VERSION=0.25.0-1~ubuntu.24.04~noble
+ARG DOCKER_COMPOSE_VERSION=2.38.2-1~ubuntu.24.04~noble
+ARG FUSE_OVERLAYFS_VERSION=1.13-1
+
+ENV DOCKER_PROVIDER_WAIT_SECONDS=10 \
+    DOCKER_START_WAIT_SECONDS=30 \
+    DOCKER_DIAGNOSTIC_LOG=/tmp/docker-start.log \
+    DOCKER_LOG_PATH=/var/log/docker.log
+
+COPY scripts/dind/install.sh /usr/local/lib/gha-image/install-dind.sh
+COPY --chmod=0755 scripts/dind/start-docker /usr/local/bin/start-docker
+
+RUN /usr/local/lib/gha-image/install-dind.sh \
+    && rm -rf /usr/local/lib/gha-image
+
+LABEL org.opencontainers.image.title="GitHub Actions Ubuntu Docker-in-Docker image" \
+      org.opencontainers.image.description="Ubuntu environment for GitHub Actions with Docker-in-Docker" \
+      io.lithos.image.flavor="dind"
+
+FROM chrome AS dind-chrome
+
+ARG UBUNTU_VERSION
+ARG TARGETARCH
+ARG DOCKER_VERSION=5:28.3.3-1~ubuntu.24.04~noble
+ARG CONTAINERD_VERSION=1.7.27-1
+ARG DOCKER_BUILDX_VERSION=0.25.0-1~ubuntu.24.04~noble
+ARG DOCKER_COMPOSE_VERSION=2.38.2-1~ubuntu.24.04~noble
+ARG FUSE_OVERLAYFS_VERSION=1.13-1
+
+ENV DOCKER_PROVIDER_WAIT_SECONDS=10 \
+    DOCKER_START_WAIT_SECONDS=30 \
+    DOCKER_DIAGNOSTIC_LOG=/tmp/docker-start.log \
+    DOCKER_LOG_PATH=/var/log/docker.log
+
+COPY scripts/dind/install.sh /usr/local/lib/gha-image/install-dind.sh
+COPY --chmod=0755 scripts/dind/start-docker /usr/local/bin/start-docker
+
+RUN /usr/local/lib/gha-image/install-dind.sh \
+    && rm -rf /usr/local/lib/gha-image
+
+LABEL org.opencontainers.image.title="GitHub Actions Ubuntu Docker-in-Docker and Chrome image" \
+      org.opencontainers.image.description="Ubuntu environment for GitHub Actions with Docker-in-Docker, Chrome, and browser testing tools" \
+      io.lithos.image.flavor="dind-chrome"

@@ -1,4 +1,4 @@
-name: Build slim images
+name: Build maintained images
 
 on:
   pull_request:
@@ -6,6 +6,8 @@ on:
       - .github/workflows/build-slim.yml
       - Dockerfile.slim
       - scripts/slim/**
+      - scripts/dind/**
+      - scripts/chrome/**
       - tests/verify-image.sh
   push:
     branches: [main]
@@ -13,6 +15,8 @@ on:
       - .github/workflows/build-slim.yml
       - Dockerfile.slim
       - scripts/slim/**
+      - scripts/dind/**
+      - scripts/chrome/**
       - tests/verify-image.sh
   schedule:
     # Daily at an off-peak minute. The build uses a 48-hour-old apt snapshot.
@@ -24,24 +28,78 @@ on:
         type: choice
         options: [all, "22.04", "24.04", "26.04"]
         default: all
+      flavor:
+        description: Image flavor to build
+        type: choice
+        options: [all, slim, dind, chrome, dind-chrome]
+        default: all
 
 permissions: {}
 
 concurrency:
-  group: slim-${{ github.ref }}
+  group: maintained-images-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
-  build:
-    name: Ubuntu ${{ matrix.ubuntu }} slim
+  prepare:
+    name: Select images
     runs-on: ubuntu-24.04
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+      - name: Build matrix
+        id: matrix
+        shell: bash
+        run: |
+          selected='[]'
+
+          add_image() {
+            ubuntu=$1
+            image_os=$2
+            flavor=$3
+
+            if [[ "$INPUT_UBUNTU" != all && "$INPUT_UBUNTU" != "$ubuntu" ]]; then
+              return
+            fi
+            if [[ "$INPUT_FLAVOR" != all && "$INPUT_FLAVOR" != "$flavor" ]]; then
+              return
+            fi
+
+            selected="$(jq --compact-output \
+              --arg ubuntu "$ubuntu" \
+              --arg image_os "$image_os" \
+              --arg flavor "$flavor" \
+              '. + [{ubuntu: $ubuntu, image_os: $image_os, flavor: $flavor, target: $flavor}]' \
+              <<<"$selected")"
+          }
+
+          add_image 22.04 ubuntu22 slim
+          add_image 24.04 ubuntu24 slim
+          add_image 24.04 ubuntu24 dind
+          add_image 24.04 ubuntu24 chrome
+          add_image 24.04 ubuntu24 dind-chrome
+          add_image 26.04 ubuntu26 slim
+
+          if [[ "$(jq length <<<"$selected")" -eq 0 ]]; then
+            echo "The selected flavor is not available for Ubuntu $INPUT_UBUNTU" >&2
+            exit 1
+          fi
+          echo "matrix={\"include\":${selected}}" >>"$GITHUB_OUTPUT"
+        env:
+          INPUT_UBUNTU: ${{ github.event_name == 'workflow_dispatch' && inputs.ubuntu || 'all' }}
+          INPUT_FLAVOR: ${{ github.event_name == 'workflow_dispatch' && inputs.flavor || 'all' }}
+
+  build:
+    name: Ubuntu ${{ matrix.ubuntu }} ${{ matrix.flavor }}
+    needs: prepare
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
     permissions:
       contents: read
       packages: write # Needed to publish images to GHCR
     strategy:
       fail-fast: false
-      matrix:
-        ubuntu: ${{ fromJSON(github.event_name == 'workflow_dispatch' && inputs.ubuntu != 'all' && format('["{0}"]', inputs.ubuntu) || '["22.04","24.04","26.04"]') }}
+      matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -53,23 +111,21 @@ jobs:
         shell: bash
         run: |
           owner="${GITHUB_REPOSITORY_OWNER,,}"
-          image="ghcr.io/${owner}/gha-ubuntu-${MATRIX_UBUNTU}-slim"
+          image="ghcr.io/${owner}/gha-ubuntu-${MATRIX_UBUNTU}-${MATRIX_FLAVOR}"
           snapshot="$(date -u -d '48 hours ago' '+%Y%m%dT000000Z')"
           created="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
           short_sha="${GITHUB_SHA::12}"
           snapshot_date="${snapshot:0:8}"
-          image_os="ubuntu${MATRIX_UBUNTU}"
-          image_os="${image_os%%.*}"
           {
             echo "image=${image}"
             echo "snapshot=${snapshot}"
             echo "created=${created}"
             echo "short_sha=${short_sha}"
             echo "snapshot_date=${snapshot_date}"
-            echo "image_os=${image_os}"
           } >>"$GITHUB_OUTPUT"
         env:
           MATRIX_UBUNTU: ${{ matrix.ubuntu }}
+          MATRIX_FLAVOR: ${{ matrix.flavor }}
 
       - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
 
@@ -86,11 +142,12 @@ jobs:
         with:
           context: .
           file: Dockerfile.slim
+          target: ${{ matrix.target }}
           platforms: linux/amd64
           push: ${{ github.event_name != 'pull_request' }}
           build-args: |
             UBUNTU_VERSION=${{ matrix.ubuntu }}
-            IMAGE_OS=${{ steps.metadata.outputs.image_os }}
+            IMAGE_OS=${{ matrix.image_os }}
             APT_SNAPSHOT=${{ steps.metadata.outputs.snapshot }}
             GITHUB_REPOSITORY=${{ github.repository }}
           tags: |
@@ -101,8 +158,10 @@ jobs:
             org.opencontainers.image.created=${{ steps.metadata.outputs.created }}
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
-          cache-from: type=gha,scope=slim-${{ matrix.ubuntu }}
-          cache-to: type=gha,mode=max,scope=slim-${{ matrix.ubuntu }}
+          cache-from: |
+            type=gha,scope=image-${{ matrix.ubuntu }}-slim
+            type=gha,scope=image-${{ matrix.ubuntu }}-${{ matrix.flavor }}
+          cache-to: type=gha,mode=max,scope=image-${{ matrix.ubuntu }}-${{ matrix.flavor }}
           provenance: mode=max
           sbom: true
 
@@ -113,9 +172,10 @@ jobs:
             --platform linux/amd64 \
             --volume "$PWD/tests:/tests:ro" \
             "${STEPS_METADATA_OUTPUTS_IMAGE}:sha-${STEPS_METADATA_OUTPUTS_SHORT_SHA}-snapshot-${STEPS_METADATA_OUTPUTS_SNAPSHOT_DATE}" \
-            /tests/verify-image.sh "${MATRIX_UBUNTU}"
+            /tests/verify-image.sh "${MATRIX_UBUNTU}" "${MATRIX_FLAVOR}"
         env:
           STEPS_METADATA_OUTPUTS_IMAGE: ${{ steps.metadata.outputs.image }}
           STEPS_METADATA_OUTPUTS_SHORT_SHA: ${{ steps.metadata.outputs.short_sha }}
           STEPS_METADATA_OUTPUTS_SNAPSHOT_DATE: ${{ steps.metadata.outputs.snapshot_date }}
           MATRIX_UBUNTU: ${{ matrix.ubuntu }}
+          MATRIX_FLAVOR: ${{ matrix.flavor }}

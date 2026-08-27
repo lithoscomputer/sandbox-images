@@ -6,11 +6,11 @@ This repository builds Linux x86-64 container images based on GitHub Actions Ubu
 
 Each image is a separate GHCR package under this repository owner.
 
-| Ubuntu | Slim | Full |
-| --- | --- | --- |
-| 22.04 | `gha-ubuntu-22.04-slim` | `gha-ubuntu-22.04-full` |
-| 24.04 | `gha-ubuntu-24.04-slim` | `gha-ubuntu-24.04-full` |
-| 26.04 | `gha-ubuntu-26.04-slim` | `gha-ubuntu-26.04-full` |
+| Ubuntu | Slim | Dind | Chrome | Dind + Chrome | Full |
+| --- | --- | --- | --- | --- | --- |
+| 22.04 | `gha-ubuntu-22.04-slim` | — | — | — | `gha-ubuntu-22.04-full` |
+| 24.04 | `gha-ubuntu-24.04-slim` | `gha-ubuntu-24.04-dind` | `gha-ubuntu-24.04-chrome` | `gha-ubuntu-24.04-dind-chrome` | `gha-ubuntu-24.04-full` |
+| 26.04 | `gha-ubuntu-26.04-slim` | — | — | — | `gha-ubuntu-26.04-full` |
 
 All images use `linux/amd64`. This repository does not build ARM, Windows, or macOS images.
 
@@ -31,6 +31,12 @@ They include pinned Node.js 20, 22, and 24 tool-cache entries for JavaScript act
 
 Use slim for workflows that install their own language runtimes and tools. Use full when a workflow depends on software that GitHub preinstalls on a hosted runner. See [Choosing an image](docs/image-selection.md) for details.
 
+Ubuntu 24.04 also has focused variants:
+
+- Dind adds Docker Engine, Buildx, Compose, containerd, and a `start-docker` command.
+- Chrome adds Chrome for Testing, `agent-browser`, Playwright MCP, FFmpeg, and browser fonts and libraries.
+- Dind + Chrome contains both focused tool sets.
+
 The build uses an Ubuntu package repository snapshot from 48 hours before the build. This prevents installation of packages released less than 24 hours ago.
 
 ## Full images
@@ -49,7 +55,7 @@ The capture excludes pseudo-filesystems, Docker state, transient files, the work
 
 ## Tags
 
-Slim builds publish:
+Maintained builds publish:
 
 - `latest`
 - `snapshot-<YYYYMMDD>`
@@ -64,7 +70,7 @@ Aliases across Ubuntu versions are intentionally out of scope.
 
 ## Updates and workflows
 
-- `build-slim.yml` builds all three slim images each day and when the slim definition changes. It uses an Ubuntu package snapshot from 48 hours before the build. Manual runs can select one release or all releases. Pull requests build without pushing.
+- `build-slim.yml` builds the three slim images and the three Ubuntu 24.04 focused variants each day and when their definitions change. It uses an Ubuntu package snapshot from 48 hours before the build. Manual runs can select a release and flavor. Pull requests build without pushing.
 - `build-full.yml` checks all three GitHub runner versions each day. It skips a capture when that `ImageVersion` tag already exists in GHCR. A change to the full-image workflow or scripts forces a new capture. Manual runs can select releases and force a recapture. Capture jobs run one at a time because each upload is large.
 - `validate.yml` checks scripts and Dockerfile structure.
 
@@ -79,6 +85,7 @@ Use an Ubuntu package snapshot that is at least 24 hours old:
 ```bash
 docker buildx build \
   --platform linux/amd64 \
+  --target slim \
   --build-arg UBUNTU_VERSION=24.04 \
   --build-arg IMAGE_OS=ubuntu24 \
   --build-arg APT_SNAPSHOT=20260824T000000Z \
@@ -95,3 +102,5 @@ docker run --rm \
   gha-ubuntu-24.04-slim:local \
   /tests/verify-image.sh 24.04
 ```
+
+Replace the target and tag with `dind`, `chrome`, or `dind-chrome` to build an Ubuntu 24.04 focused variant. See [Choosing an image](docs/image-selection.md) for environment variables, startup commands, and Docker and Daytona examples.
