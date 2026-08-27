@@ -1,129 +1,154 @@
 # GitHub Actions Ubuntu container images
 
-This repository builds Linux x86-64 container images based on GitHub Actions Ubuntu environments.
+This repository publishes Linux x86-64 container images based on GitHub Actions Ubuntu environments. Images are stored under `ghcr.io/lithoscomputer/`.
 
-## Images
+## Choose an image
 
-Each image is a separate GHCR package under this repository owner.
+Start with `ubuntu-24.04-slim`. Select a different image only when the workflow has a specific need:
 
-| Ubuntu | Slim | Dind | Chrome | Dind + Chrome | Full |
-| --- | --- | --- | --- | --- | --- |
-| 22.04 | `gha-ubuntu-22.04-slim` | — | — | — | `gha-ubuntu-22.04-full` |
-| 24.04 | `gha-ubuntu-24.04-slim` | `gha-ubuntu-24.04-dind` | `gha-ubuntu-24.04-chrome` | `gha-ubuntu-24.04-dind-chrome` | `gha-ubuntu-24.04-full` |
-| 26.04 | `gha-ubuntu-26.04-slim` | — | — | — | `gha-ubuntu-26.04-full` |
+- Use `dind` to build Docker images or run containerized services.
+- Use `chrome` for Chrome, `agent-browser`, or Playwright browser testing.
+- Use `dind-chrome` when the workflow needs both Docker and browser testing.
+- Use `full` when the workflow assumes the broad software set installed on a GitHub-hosted runner.
+- Select Ubuntu 22.04 or 26.04 only when the workflow needs that operating-system version.
 
-All images use `linux/amd64`. This repository does not build ARM, Windows, or macOS images.
+| Image name | Use it for | Approximate installed content |
+| --- | --- | ---: |
+| `ubuntu-22.04-slim` | Common command-line, Node.js action, Python, and native build work on Ubuntu 22.04 | About 1 GiB |
+| `ubuntu-24.04-slim` | Common command-line, Node.js action, Python, and native build work on Ubuntu 24.04 | 1.12 GiB |
+| `ubuntu-24.04-dind` | Docker builds and containerized services | 1.51 GiB |
+| `ubuntu-24.04-chrome` | Chrome, `agent-browser`, Playwright MCP, screenshots, and recordings | 2.26 GiB |
+| `ubuntu-24.04-dind-chrome` | Docker and browser testing in the same environment | 2.65 GiB |
+| `ubuntu-26.04-slim` | Common work that specifically needs Ubuntu 26.04 | About 1 GiB |
+| `ubuntu-22.04` | Broad GitHub-hosted runner software on Ubuntu 22.04 | Tens of GiB |
+| `ubuntu-24.04` | Broad GitHub-hosted runner software on Ubuntu 24.04 | Tens of GiB |
+| `ubuntu-26.04` | Broad GitHub-hosted runner software on Ubuntu 26.04 | Tens of GiB |
+
+All images use `linux/amd64`. This repository does not publish ARM, Windows, or macOS images. The Dind and Chrome variants are available only for Ubuntu 24.04.
 
 Ubuntu 26.04 is currently a public-preview GitHub Actions runner image. Its contents and availability can change more often than the other versions.
 
-See [Choosing an image](docs/image-selection.md) for the slim package list, major omissions, and full-image software inventories.
+### What slim means
 
-## Image aliases
+Every slim-based image includes Git, Git LFS, GitHub CLI, SSH, curl, wget, jq, ripgrep, archive tools, `build-essential`, Python with pip and venv support, and Node.js 20, 22, and 24 tool-cache entries for JavaScript actions.
 
-The `gha-` prefix is optional. An image name without a flavor selects `full`. The moving `ubuntu-latest` names currently select Ubuntu 24.04.
+Plain slim does not include Docker, Chrome, Java, .NET, Go, Ruby, Rust, Android tools, cloud CLIs, Kubernetes tools, Terraform, databases, Homebrew, or the broad GitHub-hosted runner tool cache. Select a focused Dind or Chrome image when it provides the missing capability. Select full when the workflow depends on several other preinstalled toolchains or close GitHub runner filesystem parity.
 
-Examples:
+Full images contain the captured runner filesystem, but they are still containers. They do not include the runner virtual machine, host kernel, transient Docker state, or automatically started services.
 
-| Image name | Canonical image |
+## Image names and aliases
+
+Use an image as:
+
+```text
+ghcr.io/lithoscomputer/<image-name>:<tag>
+```
+
+The `gha-` prefix is optional. For example, both names below select the same package content:
+
+```text
+ghcr.io/lithoscomputer/ubuntu-24.04-slim:<tag>
+ghcr.io/lithoscomputer/gha-ubuntu-24.04-slim:<tag>
+```
+
+An image name without a flavor selects `full`. Explicit Ubuntu versions do not move.
+
+### Version-specific aliases
+
+| Alias | Canonical image |
 | --- | --- |
 | `ubuntu-22.04` | `gha-ubuntu-22.04-full` |
+| `ubuntu-22.04-full` | `gha-ubuntu-22.04-full` |
+| `ubuntu-22.04-slim` | `gha-ubuntu-22.04-slim` |
+| `ubuntu-24.04` | `gha-ubuntu-24.04-full` |
+| `ubuntu-24.04-full` | `gha-ubuntu-24.04-full` |
 | `ubuntu-24.04-slim` | `gha-ubuntu-24.04-slim` |
+| `ubuntu-24.04-dind` | `gha-ubuntu-24.04-dind` |
+| `ubuntu-24.04-chrome` | `gha-ubuntu-24.04-chrome` |
+| `ubuntu-24.04-dind-chrome` | `gha-ubuntu-24.04-dind-chrome` |
+| `ubuntu-26.04` | `gha-ubuntu-26.04-full` |
+| `ubuntu-26.04-full` | `gha-ubuntu-26.04-full` |
+| `ubuntu-26.04-slim` | `gha-ubuntu-26.04-slim` |
+
+The corresponding names with the `gha-` prefix also work. This includes the full aliases without a flavor: `gha-ubuntu-22.04`, `gha-ubuntu-24.04`, and `gha-ubuntu-26.04`.
+
+### Moving aliases
+
+The `ubuntu-latest` family currently selects Ubuntu 24.04.
+
+| Alias | Canonical image |
+| --- | --- |
 | `ubuntu-latest` | `gha-ubuntu-24.04-full` |
+| `ubuntu-latest-full` | `gha-ubuntu-24.04-full` |
 | `ubuntu-latest-slim` | `gha-ubuntu-24.04-slim` |
 | `ubuntu-latest-dind` | `gha-ubuntu-24.04-dind` |
 | `ubuntu-latest-chrome` | `gha-ubuntu-24.04-chrome` |
 | `ubuntu-latest-dind-chrome` | `gha-ubuntu-24.04-dind-chrome` |
 
-The equivalent aliases with the `gha-` prefix also work, such as `gha-ubuntu-24.04` and `gha-ubuntu-latest-slim`. Explicit Ubuntu versions do not move. The repository will change the `ubuntu-latest` target only through a deliberate update.
+Each moving alias also works with the `gha-` prefix. The repository will move the `ubuntu-latest` family only through a deliberate mapping change.
 
-Aliases receive the same tags and reference the same image content as their canonical package. See [Choosing an image](docs/image-selection.md#image-aliases) for the complete mapping.
+## Choose a tag
 
-## Slim images
+Use `latest` when the workflow should receive image updates automatically. Use an immutable tag when a workflow must remain reproducible.
 
-Slim images start from the matching official Ubuntu container image. They include common command-line tools and compatibility paths used by GitHub Actions. The design follows ideas from:
+Slim, Dind, and Chrome images publish:
 
-- [`catthehacker/docker_images`](https://github.com/catthehacker/docker_images)
-- [GitHub's `ubuntu-slim` image](https://github.com/actions/runner-images/tree/main/images/ubuntu-slim)
+| Tag | Behavior |
+| --- | --- |
+| `latest` | Moves after each maintained build |
+| `snapshot-<YYYYMMDD>` | Identifies the Ubuntu package snapshot date |
+| `sha-<12-character-commit>-snapshot-<YYYYMMDD>` | Immutable source commit and package snapshot |
 
-The slim images are intentionally not exact copies of GitHub-hosted runners.
+Full images publish:
 
-They include pinned Node.js 20, 22, and 24 tool-cache entries for JavaScript actions. The default `node` command uses Node.js 24.
+| Tag | Behavior |
+| --- | --- |
+| `latest` | Moves after a new GitHub runner filesystem is captured |
+| GitHub runner `ImageVersion` | Identifies the captured runner release |
 
-Use slim for workflows that install their own language runtimes and tools. Use full when a workflow depends on software that GitHub preinstalls on a hosted runner. See [Choosing an image](docs/image-selection.md) for details.
+Aliases receive the same tags and reference the same image content as their canonical packages.
 
-Ubuntu 24.04 also has focused variants:
+## Examples
 
-- Dind adds Docker Engine, Buildx, Compose, containerd, and a `start-docker` command.
-- Chrome adds Chrome for Testing, `agent-browser`, Playwright MCP, FFmpeg, and browser fonts and libraries.
-- Dind + Chrome contains both focused tool sets.
-
-The build uses an Ubuntu package repository snapshot from 48 hours before the build. This prevents installation of packages released less than 24 hours ago.
-
-## Full images
-
-Full images are filesystem captures of actual GitHub-hosted runners. Each capture job runs on its matching runner label:
-
-- `ubuntu-22.04`
-- `ubuntu-24.04`
-- `ubuntu-26.04`
-
-The workflow streams the filesystem directly to GHCR. It does not create a second local copy. This matters because a full runner filesystem is tens of gigabytes after extraction.
-
-Full does not inherit from slim. A runner capture already contains the complete operating system and tool set. Adding that filesystem over slim would duplicate content and make the image larger.
-
-The capture excludes pseudo-filesystems, Docker state, transient files, the workflow checkout, and common credential locations. Keep the capture workflow small. Do not run untrusted steps before the filesystem capture.
-
-## Tags
-
-Maintained builds publish:
-
-- `latest`
-- `snapshot-<YYYYMMDD>`
-- `sha-<12-character-commit>-snapshot-<YYYYMMDD>`
-
-Each maintained alias package receives these same tags.
-
-Full captures publish:
-
-- `latest`
-- the GitHub runner `ImageVersion` value
-
-Each full-image alias package receives these same tags.
-
-## Updates and workflows
-
-- `build-slim.yml` builds the three slim images and the three Ubuntu 24.04 focused variants each day and when their definitions change. It uses an Ubuntu package snapshot from 48 hours before the build. Manual runs can select a release and flavor. Pull requests build without pushing. Published Dind and Chrome variants also run a functional Docker or browser smoke test.
-- `build-full.yml` checks all three GitHub runner versions each day. It skips a capture when that `ImageVersion` tag already exists in GHCR. A change to the full-image workflow or capture scripts forces a new capture. Manual runs can select releases and force a recapture. The three captures can run concurrently.
-- `sync-full-aliases.yml` copies the current canonical full manifests to every full-image alias. Alias mapping changes run this small workflow without capturing the runner filesystems again. A completed full capture also calls it.
-- `validate.yml` checks scripts and Dockerfile structure.
-
-The daily schedules use off-peak minutes because GitHub can delay scheduled workflows during high load. GitHub normally updates runner images weekly, and its deployment can take two to three days. A daily version check catches each release after it reaches the runner pool without uploading an unchanged filesystem each day.
-
-GHCR packages inherit repository access by default. Configure package visibility in GitHub after the first publish if the images must be public.
-
-## Local slim build
-
-Use an Ubuntu package snapshot that is at least 24 hours old:
+Pull the recommended slim image:
 
 ```bash
-docker buildx build \
-  --platform linux/amd64 \
-  --target slim \
-  --build-arg UBUNTU_VERSION=24.04 \
-  --build-arg IMAGE_OS=ubuntu24 \
-  --build-arg APT_SNAPSHOT=20260824T000000Z \
-  --tag gha-ubuntu-24.04-slim:local \
-  --load \
-  --file Dockerfile.slim .
+docker pull ghcr.io/lithoscomputer/ubuntu-24.04-slim:latest
 ```
 
-Then verify the image:
+Run a command:
 
 ```bash
 docker run --rm \
-  --volume "$PWD/tests:/tests:ro" \
-  gha-ubuntu-24.04-slim:local \
-  /tests/verify-image.sh 24.04
+  ghcr.io/lithoscomputer/ubuntu-24.04-slim:latest \
+  gh --version
 ```
 
-Replace the target and tag with `dind`, `chrome`, or `dind-chrome` to build an Ubuntu 24.04 focused variant. See [Choosing an image](docs/image-selection.md) for environment variables, startup commands, and Docker and Daytona examples.
+Pin a maintained image:
+
+```text
+ghcr.io/lithoscomputer/ubuntu-24.04-dind:sha-<commit>-snapshot-<YYYYMMDD>
+```
+
+The packages are private until their visibility is changed. Authenticate with a token that has package read access before pulling them:
+
+```bash
+docker login ghcr.io
+```
+
+## Technical reference
+
+- [Image contract](docs/image-contract.md): platform, process defaults, environment variables, paths, and runtime responsibilities.
+- [Slim images](docs/slim-images.md): installed packages, Node.js tool cache, omissions, sizes, and test results.
+- [Docker-in-Docker](docs/docker-in-docker.md): Docker contents, `start-docker`, privileges, and Daytona usage.
+- [Chrome browser](docs/chrome-browser.md): Chrome, `agent-browser`, Playwright MCP, FFmpeg, and browser environment variables.
+- [Full images](docs/full-images.md): runner capture contents, limits, and upstream software inventories.
+- [Development](docs/development.md): repository layout, workflows, local builds, validation, and release maintenance.
+
+## License
+
+This project is available under the [MIT License](LICENSE.md).
+
+## Acknowledgement
+
+The slim-image design and GitHub Actions compatibility approach draw on [catthehacker/docker_images](https://github.com/catthehacker/docker_images). Thank you to its maintainers and contributors for making their work available.
