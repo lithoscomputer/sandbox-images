@@ -11,12 +11,11 @@ This guide is for people who change, build, test, or publish images from the `sa
 | `scripts/dind/` | Docker installation and the `start-docker` command |
 | `scripts/chrome/` | Chrome and browser-tool installation |
 | `scripts/full/` | GitHub runner filesystem capture and OCI publication |
-| `scripts/aliases/` | Cross-package OCI manifest publication for full aliases |
-| `scripts/image-aliases.sh` | Supported image matrix and alias mapping |
-| `tests/` | Static, registry, image-content, documentation, and runtime checks |
-| `.github/workflows/` | Validation, maintained builds, full capture, and alias synchronization |
+| `scripts/registry/` | Server-side OCI manifest copying and immutable tag publication |
+| `tests/` | Registry, image-content, and runtime checks |
+| `.github/workflows/` | Validation, maintained builds, and full capture |
 
-## Supported build matrix
+## Published topology
 
 | Ubuntu | `slim` | `dind` | `chrome` | `dind-chrome` | `full` |
 | --- | --- | --- | --- | --- | --- |
@@ -24,9 +23,25 @@ This guide is for people who change, build, test, or publish images from the `sa
 | 24.04 | Yes | Yes | Yes | Yes | Yes |
 | 26.04 | Yes | No | No | No | Yes |
 
-Every published image uses `linux/amd64`.
+Every image uses `linux/amd64`.
 
-Keep the matrix in `scripts/image-aliases.sh`, the maintained workflow matrix, the validation matrix, and the README synchronized.
+The four slim-derived flavors for one Ubuntu version share one package:
+
+```text
+ghcr.io/lithoscomputer/ubuntu-24.04:slim
+ghcr.io/lithoscomputer/ubuntu-24.04:dind
+ghcr.io/lithoscomputer/ubuntu-24.04:chrome
+ghcr.io/lithoscomputer/ubuntu-24.04:dind-chrome
+```
+
+Full images use separate packages because their source, size, and release schedule differ:
+
+```text
+ghcr.io/lithoscomputer/ubuntu-24.04-full:latest
+ghcr.io/lithoscomputer/ubuntu-24.04-full:<ImageVersion>
+```
+
+Keep the maintained workflow matrix, validation matrix, and README synchronized. Do not create package aliases. GHCR treats every distinct path before the colon as a separate package.
 
 ## Dependency safety
 
@@ -45,9 +60,13 @@ GitHub Actions must use full commit SHA pins. Run pedantic Zizmor after changing
 - `chrome` starts from `slim` and adds the browser stack.
 - `dind-chrome` starts from `chrome` and adds Docker.
 
-The daily workflow builds six images: three slim releases and the three focused Ubuntu 24.04 variants. It publishes canonical packages and maintained aliases in the same Buildx operation.
+The daily workflow builds six images: three slim releases and the three focused Ubuntu 24.04 variants.
 
-After publication, the workflow verifies the immutable image and every alias. Dind and Chrome variants also run `tests/smoke-runtime.sh`.
+Each successful build moves its flavor tag. The workflow then uses `scripts/registry/copy-image.mjs` to create `<flavor>-<12-character-commit>` when that tag does not exist. A scheduled build at the same commit can move the flavor tag but cannot move the existing short-commit tag. Use a digest to pin the exact result of a later scheduled dependency refresh.
+
+After publication, the workflow verifies the mutable flavor tag. Dind and Chrome variants also run `tests/smoke-runtime.sh`.
+
+Publication-only workflow changes do not trigger an image build. Use a manual workflow run after changing tag or package routing. Changes to the Dockerfile, installation scripts, or image runtime tests trigger builds automatically.
 
 ## Full image capture
 
@@ -55,9 +74,7 @@ The full workflow runs on the matching GitHub-hosted runner and streams each fil
 
 The capture workflow must remain small. Do not run untrusted code before the capture. The checkout action is the only third-party action allowed before filesystem collection, and the checkout directory is excluded from the image.
 
-The workflow checks the runner `ImageVersion` before capture. Scheduled runs skip an existing version. A push that changes `build-full.yml` or `scripts/full/` forces capture so changes to the capture implementation receive a new image.
-
-Alias mapping changes do not trigger full capture. `sync-full-aliases.yml` copies the current canonical manifests to the alias packages.
+The workflow checks the runner `ImageVersion` before capture. Scheduled runs skip an existing version. Changes to `scripts/full/` trigger a capture so changes to the capture implementation receive a new image. A workflow-only routing change requires a manual run and should not force a capture.
 
 See [Full images](full-images.md) for layer and exclusion details.
 
@@ -66,9 +83,8 @@ See [Full images](full-images.md) for layer and exclusion details.
 | Workflow | Automatic triggers | Purpose |
 | --- | --- | --- |
 | `validate.yml` | Every pull request and push | Run repository checks and Dockerfile validation |
-| `build-slim.yml` | Relevant pull requests and pushes; daily at 05:23 UTC | Build and publish maintained images |
+| `build-slim.yml` | Image-content changes; daily at 05:23 UTC | Build and publish maintained images |
 | `build-full.yml` | Capture implementation changes; daily at 08:47 UTC | Check runner versions and capture new full images |
-| `sync-full-aliases.yml` | Alias implementation or mapping changes; called after full capture | Publish full image aliases without filesystem capture |
 
 Manual runs can select a maintained release and flavor, or a full release and force option.
 
@@ -85,7 +101,7 @@ docker buildx build \
   --build-arg UBUNTU_VERSION=24.04 \
   --build-arg IMAGE_OS=ubuntu24 \
   --build-arg APT_SNAPSHOT=<YYYYMMDD>T000000Z \
-  --tag gha-ubuntu-24.04-slim:local \
+  --tag ubuntu-24.04:local-slim \
   --load \
   --file Dockerfile.slim .
 ```
@@ -97,7 +113,7 @@ Verify the image:
 ```bash
 docker run --rm \
   --volume "$PWD/tests:/tests:ro" \
-  gha-ubuntu-24.04-slim:local \
+  ubuntu-24.04:local-slim \
   /tests/verify-image.sh 24.04 slim
 ```
 
@@ -106,7 +122,7 @@ Run a Dind smoke test in a privileged container:
 ```bash
 docker run --rm --privileged \
   --volume "$PWD/tests:/tests:ro" \
-  gha-ubuntu-24.04-dind:local \
+  ubuntu-24.04:local-dind \
   /tests/smoke-runtime.sh dind
 ```
 
@@ -115,7 +131,7 @@ Run a Chrome smoke test with additional shared memory:
 ```bash
 docker run --rm --shm-size=1g \
   --volume "$PWD/tests:/tests:ro" \
-  gha-ubuntu-24.04-chrome:local \
+  ubuntu-24.04:local-chrome \
   /tests/smoke-runtime.sh chrome
 ```
 
@@ -124,13 +140,12 @@ docker run --rm --shm-size=1g \
 Run these checks before pushing a change:
 
 ```bash
-bash -n scripts/image-aliases.sh scripts/slim/install.sh scripts/dind/install.sh scripts/dind/start-docker scripts/chrome/install.sh scripts/full/capture-layer.sh tests/image-aliases.sh tests/smoke-runtime.sh tests/verify-image.sh
-shellcheck scripts/image-aliases.sh scripts/slim/install.sh scripts/dind/install.sh scripts/dind/start-docker scripts/chrome/install.sh scripts/full/capture-layer.sh tests/image-aliases.sh tests/smoke-runtime.sh tests/verify-image.sh
-tests/image-aliases.sh
+bash -n scripts/slim/install.sh scripts/dind/install.sh scripts/dind/start-docker scripts/chrome/install.sh scripts/full/capture-layer.sh tests/smoke-runtime.sh tests/verify-image.sh
+shellcheck scripts/slim/install.sh scripts/dind/install.sh scripts/dind/start-docker scripts/chrome/install.sh scripts/full/capture-layer.sh tests/smoke-runtime.sh tests/verify-image.sh
 node --check scripts/full/registry.mjs
-node --check scripts/aliases/registry.mjs
+node --check scripts/registry/copy-image.mjs
 node tests/registry-upload.mjs
-node tests/registry-aliases.mjs
+node tests/registry-copy.mjs
 zizmor --pedantic .github/workflows
 git diff --check
 ```
@@ -154,14 +169,12 @@ For a pinned downloaded tool:
 4. Update the relevant image-family document.
 5. Run the content and runtime tests.
 
-## Change aliases
+## Change package or tag routing
 
-Update `scripts/image-aliases.sh`, the complete mapping in the README, and `tests/image-aliases.sh` together. The full alias workflow can publish mapping changes without recapturing full images.
+Update the workflows, README, and this guide together. Do not publish another package path as an alias. Use a tag in one of the six documented packages.
 
-Do not move the `ubuntu-latest` family as a side effect of another change. Treat that mapping as a deliberate compatibility decision.
+Use `scripts/registry/copy-image.mjs` when an existing manifest must receive a new tag or move to another package without rebuilding its layers. The command copies the complete OCI graph, including provenance and SBOM manifests, and verifies the target digest.
 
 ## GHCR access
 
-Build workflows use `GITHUB_TOKEN` with package write access. Packages inherit repository access when first created. Package visibility is an explicit operational decision and is separate from repository visibility.
-
-Before making packages public, verify the README, immutable tags, aliases, image labels, and runtime tests from an unauthenticated environment.
+Build workflows use `GITHUB_TOKEN` with package write access. The six packages are public and linked to this repository. Public images must remain anonymously readable after every publication change.

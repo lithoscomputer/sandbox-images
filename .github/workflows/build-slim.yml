@@ -3,23 +3,19 @@ name: Build maintained images
 on:
   pull_request:
     paths:
-      - .github/workflows/build-slim.yml
       - Dockerfile.slim
       - scripts/slim/**
       - scripts/dind/**
       - scripts/chrome/**
-      - scripts/image-aliases.sh
       - tests/verify-image.sh
       - tests/smoke-runtime.sh
   push:
     branches: [main]
     paths:
-      - .github/workflows/build-slim.yml
       - Dockerfile.slim
       - scripts/slim/**
       - scripts/dind/**
       - scripts/chrome/**
-      - scripts/image-aliases.sh
       - tests/verify-image.sh
       - tests/smoke-runtime.sh
   schedule:
@@ -115,34 +111,16 @@ jobs:
         shell: bash
         run: |
           owner="${GITHUB_REPOSITORY_OWNER,,}"
-          mapfile -t packages < <(
-            scripts/image-aliases.sh "$owner" "$MATRIX_UBUNTU" "$MATRIX_FLAVOR"
-          )
-          image="ghcr.io/${packages[0]}"
-          smoke_image="ghcr.io/${packages[${#packages[@]} - 1]}"
+          image="ghcr.io/${owner}/ubuntu-${MATRIX_UBUNTU}"
           snapshot="$(date -u -d '48 hours ago' '+%Y%m%dT000000Z')"
           created="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
           short_sha="${GITHUB_SHA::12}"
-          snapshot_date="${snapshot:0:8}"
           {
             echo "image=${image}"
-            echo "smoke_image=${smoke_image}"
             echo "snapshot=${snapshot}"
             echo "created=${created}"
             echo "short_sha=${short_sha}"
-            echo "snapshot_date=${snapshot_date}"
-            echo 'images<<EOF'
-            for package in "${packages[@]}"; do
-              echo "ghcr.io/${package}"
-            done
-            echo 'EOF'
-            echo 'tags<<EOF'
-            for package in "${packages[@]}"; do
-              echo "ghcr.io/${package}:latest"
-              echo "ghcr.io/${package}:snapshot-${snapshot_date}"
-              echo "ghcr.io/${package}:sha-${short_sha}-snapshot-${snapshot_date}"
-            done
-            echo 'EOF'
+            echo "tags=${image}:${MATRIX_FLAVOR}"
           } >>"$GITHUB_OUTPUT"
         env:
           MATRIX_UBUNTU: ${{ matrix.ubuntu }}
@@ -184,27 +162,30 @@ jobs:
           provenance: mode=max
           sbom: true
 
+      - name: Publish immutable source tag
+        if: github.event_name != 'pull_request'
+        run: >-
+          node scripts/registry/copy-image.mjs copy
+          --source "${STEPS_METADATA_OUTPUTS_IMAGE}:${MATRIX_FLAVOR}"
+          --target "${STEPS_METADATA_OUTPUTS_IMAGE}:${MATRIX_FLAVOR}-${STEPS_METADATA_OUTPUTS_SHORT_SHA}"
+          --if-absent
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          STEPS_METADATA_OUTPUTS_IMAGE: ${{ steps.metadata.outputs.image }}
+          STEPS_METADATA_OUTPUTS_SHORT_SHA: ${{ steps.metadata.outputs.short_sha }}
+          MATRIX_FLAVOR: ${{ matrix.flavor }}
+
       - name: Verify published image
         if: github.event_name != 'pull_request'
         run: |
-          canonical_ref="${STEPS_METADATA_OUTPUTS_IMAGE}:sha-${STEPS_METADATA_OUTPUTS_SHORT_SHA}-snapshot-${STEPS_METADATA_OUTPUTS_SNAPSHOT_DATE}"
+          canonical_ref="${STEPS_METADATA_OUTPUTS_IMAGE}:${MATRIX_FLAVOR}"
           docker run --rm \
             --platform linux/amd64 \
             --volume "$PWD/tests:/tests:ro" \
             "$canonical_ref" \
             /tests/verify-image.sh "${MATRIX_UBUNTU}" "${MATRIX_FLAVOR}"
-
-          canonical_id="$(docker image inspect --format '{{.Id}}' "$canonical_ref")"
-          while IFS= read -r image; do
-            alias_ref="${image}:sha-${STEPS_METADATA_OUTPUTS_SHORT_SHA}-snapshot-${STEPS_METADATA_OUTPUTS_SNAPSHOT_DATE}"
-            docker pull --platform linux/amd64 "$alias_ref"
-            test "$(docker image inspect --format '{{.Id}}' "$alias_ref")" = "$canonical_id"
-          done <<<"$STEPS_METADATA_OUTPUTS_IMAGES"
         env:
           STEPS_METADATA_OUTPUTS_IMAGE: ${{ steps.metadata.outputs.image }}
-          STEPS_METADATA_OUTPUTS_IMAGES: ${{ steps.metadata.outputs.images }}
-          STEPS_METADATA_OUTPUTS_SHORT_SHA: ${{ steps.metadata.outputs.short_sha }}
-          STEPS_METADATA_OUTPUTS_SNAPSHOT_DATE: ${{ steps.metadata.outputs.snapshot_date }}
           MATRIX_UBUNTU: ${{ matrix.ubuntu }}
           MATRIX_FLAVOR: ${{ matrix.flavor }}
 
@@ -212,7 +193,7 @@ jobs:
         if: github.event_name != 'pull_request' && matrix.flavor != 'slim'
         shell: bash
         run: |
-          smoke_ref="${STEPS_METADATA_OUTPUTS_SMOKE_IMAGE}:sha-${STEPS_METADATA_OUTPUTS_SHORT_SHA}-snapshot-${STEPS_METADATA_OUTPUTS_SNAPSHOT_DATE}"
+          smoke_ref="${STEPS_METADATA_OUTPUTS_IMAGE}:${MATRIX_FLAVOR}"
           docker_args=(
             --rm
             --platform linux/amd64
@@ -227,7 +208,5 @@ jobs:
             "$smoke_ref" \
             /tests/smoke-runtime.sh "$MATRIX_FLAVOR"
         env:
-          STEPS_METADATA_OUTPUTS_SMOKE_IMAGE: ${{ steps.metadata.outputs.smoke_image }}
-          STEPS_METADATA_OUTPUTS_SHORT_SHA: ${{ steps.metadata.outputs.short_sha }}
-          STEPS_METADATA_OUTPUTS_SNAPSHOT_DATE: ${{ steps.metadata.outputs.snapshot_date }}
+          STEPS_METADATA_OUTPUTS_IMAGE: ${{ steps.metadata.outputs.image }}
           MATRIX_FLAVOR: ${{ matrix.flavor }}

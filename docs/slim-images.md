@@ -64,10 +64,10 @@ On 2026-08-27, all four Ubuntu 24.04 slim-based images were tested in Daytona co
 
 | Image | Installed filesystem content | Daytona create time | Runtime check |
 | --- | ---: | ---: | --- |
-| `gha-ubuntu-24.04-slim` | 1,202,847,744 bytes (1.12 GiB) | 0.78 s | Shared commands and environment verified |
-| `gha-ubuntu-24.04-dind` | 1,619,832,832 bytes (1.51 GiB) | 0.84 s | Docker 28.3.3 started; an `amd64` scratch image built |
-| `gha-ubuntu-24.04-chrome` | 2,431,909,888 bytes (2.26 GiB) | 2.09 s | Chrome opened and closed `about:blank` with `agent-browser` |
-| `gha-ubuntu-24.04-dind-chrome` | 2,849,046,528 bytes (2.65 GiB) | 1.14 s | Both Docker and Chrome checks passed |
+| `ubuntu-24.04:slim` | 1,202,847,744 bytes (1.12 GiB) | 0.78 s | Shared commands and environment verified |
+| `ubuntu-24.04:dind` | 1,619,832,832 bytes (1.51 GiB) | 0.84 s | Docker 28.3.3 started; an `amd64` scratch image built |
+| `ubuntu-24.04:chrome` | 2,431,909,888 bytes (2.26 GiB) | 2.09 s | Chrome opened and closed `about:blank` with `agent-browser` |
+| `ubuntu-24.04:dind-chrome` | 2,849,046,528 bytes (2.65 GiB) | 1.14 s | Both Docker and Chrome checks passed |
 
 The filesystem figure is the output of `du -x -s -B1 /`. It includes the read-only image layers. Daytona reported only 20,480 bytes in use on the 10 GB writable overlay before the tests, so `df` does not show the image-layer cost. These measurements are a functional check, not a performance benchmark.
 

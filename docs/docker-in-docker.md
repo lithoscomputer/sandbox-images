@@ -44,7 +44,7 @@ Direct Docker example:
 
 ```bash
 docker run --rm -it --privileged \
-  ghcr.io/lithoscomputer/ubuntu-24.04-dind:<tag>
+  ghcr.io/lithoscomputer/ubuntu-24.04:dind
 ```
 
 Then start the daemon and run a container:
@@ -67,7 +67,7 @@ start-docker
 docker info
 ```
 
-Private GHCR packages require registry credentials with package read access. The 2026-08-27 validation used `daytona snapshot push` with locally built images because direct private GHCR import was not authorized by the available Daytona credentials.
+The GHCR packages are public and can be pulled without registry credentials. The 2026-08-27 validation used `daytona snapshot push` with locally built images because the packages were still private at that time.
 
 ## Automated validation
 

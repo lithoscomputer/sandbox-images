@@ -4,7 +4,13 @@ This repository publishes Linux x86-64 container images based on GitHub Actions 
 
 ## Choose an image
 
-Start with `ubuntu-24.04-slim`. Select a different image only when the workflow has a specific need:
+Start with Ubuntu 24.04 slim:
+
+```text
+ghcr.io/lithoscomputer/ubuntu-24.04:slim
+```
+
+Select a different image only when the workflow has a specific need:
 
 - Use `dind` to build Docker images or run containerized services.
 - Use `chrome` for Chrome, `agent-browser`, or Playwright browser testing.
@@ -12,19 +18,19 @@ Start with `ubuntu-24.04-slim`. Select a different image only when the workflow 
 - Use `full` when the workflow assumes the broad software set installed on a GitHub-hosted runner.
 - Select Ubuntu 22.04 or 26.04 only when the workflow needs that operating-system version.
 
-| Image name | Use it for | Approximate installed content |
-| --- | --- | ---: |
-| `ubuntu-22.04-slim` | Common command-line, Node.js action, Python, and native build work on Ubuntu 22.04 | About 1 GiB |
-| `ubuntu-24.04-slim` | Common command-line, Node.js action, Python, and native build work on Ubuntu 24.04 | 1.12 GiB |
-| `ubuntu-24.04-dind` | Docker builds and containerized services | 1.51 GiB |
-| `ubuntu-24.04-chrome` | Chrome, `agent-browser`, Playwright MCP, screenshots, and recordings | 2.26 GiB |
-| `ubuntu-24.04-dind-chrome` | Docker and browser testing in the same environment | 2.65 GiB |
-| `ubuntu-26.04-slim` | Common work that specifically needs Ubuntu 26.04 | About 1 GiB |
-| `ubuntu-22.04` | Broad GitHub-hosted runner software on Ubuntu 22.04 | Tens of GiB |
-| `ubuntu-24.04` | Broad GitHub-hosted runner software on Ubuntu 24.04 | Tens of GiB |
-| `ubuntu-26.04` | Broad GitHub-hosted runner software on Ubuntu 26.04 | Tens of GiB |
+| Ubuntu | Flavor | Image reference | Approximate installed content |
+| --- | --- | --- | ---: |
+| 22.04 | Slim | `ghcr.io/lithoscomputer/ubuntu-22.04:slim` | About 1 GiB |
+| 22.04 | Full | `ghcr.io/lithoscomputer/ubuntu-22.04-full:latest` | Tens of GiB |
+| 24.04 | Slim | `ghcr.io/lithoscomputer/ubuntu-24.04:slim` | 1.12 GiB |
+| 24.04 | Docker-in-Docker | `ghcr.io/lithoscomputer/ubuntu-24.04:dind` | 1.51 GiB |
+| 24.04 | Chrome | `ghcr.io/lithoscomputer/ubuntu-24.04:chrome` | 2.26 GiB |
+| 24.04 | Docker-in-Docker and Chrome | `ghcr.io/lithoscomputer/ubuntu-24.04:dind-chrome` | 2.65 GiB |
+| 24.04 | Full | `ghcr.io/lithoscomputer/ubuntu-24.04-full:latest` | Tens of GiB |
+| 26.04 | Slim | `ghcr.io/lithoscomputer/ubuntu-26.04:slim` | About 1 GiB |
+| 26.04 | Full | `ghcr.io/lithoscomputer/ubuntu-26.04-full:latest` | Tens of GiB |
 
-All images use `linux/amd64`. This repository does not publish ARM, Windows, or macOS images. The Dind and Chrome variants are available only for Ubuntu 24.04.
+All images use `linux/amd64`. This repository does not publish ARM, Windows, or macOS images. Dind and Chrome variants are available only for Ubuntu 24.04.
 
 Ubuntu 26.04 is currently a public-preview GitHub Actions runner image. Its contents and availability can change more often than the other versions.
 
@@ -36,105 +42,67 @@ Plain slim does not include Docker, Chrome, Java, .NET, Go, Ruby, Rust, Android 
 
 Full images contain the captured runner filesystem, but they are still containers. They do not include the runner virtual machine, host kernel, transient Docker state, or automatically started services.
 
-## Image names and aliases
-
-Use an image as:
-
-```text
-ghcr.io/lithoscomputer/<image-name>:<tag>
-```
-
-The `gha-` prefix is optional. For example, both names below select the same package content:
-
-```text
-ghcr.io/lithoscomputer/ubuntu-24.04-slim:<tag>
-ghcr.io/lithoscomputer/gha-ubuntu-24.04-slim:<tag>
-```
-
-An image name without a flavor selects `full`. Explicit Ubuntu versions do not move.
-
-### Version-specific aliases
-
-| Alias | Canonical image |
-| --- | --- |
-| `ubuntu-22.04` | `gha-ubuntu-22.04-full` |
-| `ubuntu-22.04-full` | `gha-ubuntu-22.04-full` |
-| `ubuntu-22.04-slim` | `gha-ubuntu-22.04-slim` |
-| `ubuntu-24.04` | `gha-ubuntu-24.04-full` |
-| `ubuntu-24.04-full` | `gha-ubuntu-24.04-full` |
-| `ubuntu-24.04-slim` | `gha-ubuntu-24.04-slim` |
-| `ubuntu-24.04-dind` | `gha-ubuntu-24.04-dind` |
-| `ubuntu-24.04-chrome` | `gha-ubuntu-24.04-chrome` |
-| `ubuntu-24.04-dind-chrome` | `gha-ubuntu-24.04-dind-chrome` |
-| `ubuntu-26.04` | `gha-ubuntu-26.04-full` |
-| `ubuntu-26.04-full` | `gha-ubuntu-26.04-full` |
-| `ubuntu-26.04-slim` | `gha-ubuntu-26.04-slim` |
-
-The corresponding names with the `gha-` prefix also work. This includes the full aliases without a flavor: `gha-ubuntu-22.04`, `gha-ubuntu-24.04`, and `gha-ubuntu-26.04`.
-
-### Moving aliases
-
-The `ubuntu-latest` family currently selects Ubuntu 24.04.
-
-| Alias | Canonical image |
-| --- | --- |
-| `ubuntu-latest` | `gha-ubuntu-24.04-full` |
-| `ubuntu-latest-full` | `gha-ubuntu-24.04-full` |
-| `ubuntu-latest-slim` | `gha-ubuntu-24.04-slim` |
-| `ubuntu-latest-dind` | `gha-ubuntu-24.04-dind` |
-| `ubuntu-latest-chrome` | `gha-ubuntu-24.04-chrome` |
-| `ubuntu-latest-dind-chrome` | `gha-ubuntu-24.04-dind-chrome` |
-
-Each moving alias also works with the `gha-` prefix. The repository will move the `ubuntu-latest` family only through a deliberate mapping change.
-
 ## Choose a tag
 
-Use `latest` when the workflow should receive image updates automatically. Use an immutable tag when a workflow must remain reproducible.
+Non-full packages require an explicit flavor tag. They do not publish `latest`:
 
-Slim, Dind, and Chrome images publish:
+```text
+ghcr.io/lithoscomputer/ubuntu-24.04:slim
+ghcr.io/lithoscomputer/ubuntu-24.04:dind
+ghcr.io/lithoscomputer/ubuntu-24.04:chrome
+ghcr.io/lithoscomputer/ubuntu-24.04:dind-chrome
+```
 
-| Tag | Behavior |
-| --- | --- |
-| `latest` | Moves after each maintained build |
-| `snapshot-<YYYYMMDD>` | Identifies the Ubuntu package snapshot date |
-| `sha-<12-character-commit>-snapshot-<YYYYMMDD>` | Immutable source commit and package snapshot |
+The flavor tags move after successful maintained builds. Use a flavor and 12-character source commit when the source revision must not move:
 
-Full images publish:
+```text
+ghcr.io/lithoscomputer/ubuntu-24.04:slim-d832b6d5a46e
+ghcr.io/lithoscomputer/ubuntu-24.04:dind-d832b6d5a46e
+```
+
+A scheduled build can refresh packages without changing the repository commit. The short-commit tag is set once and does not move. Pin the image digest when a workflow must select the exact result of a later scheduled refresh:
+
+```text
+ghcr.io/lithoscomputer/ubuntu-24.04@sha256:<digest>
+```
+
+Full packages publish:
 
 | Tag | Behavior |
 | --- | --- |
 | `latest` | Moves after a new GitHub runner filesystem is captured |
-| GitHub runner `ImageVersion` | Identifies the captured runner release |
+| GitHub runner `ImageVersion` | Identifies the captured runner release and does not move |
 
-Aliases receive the same tags and reference the same image content as their canonical packages.
+There is no moving `ubuntu-latest` package or tag. Select an Ubuntu version explicitly.
 
 ## Examples
 
-Pull the recommended slim image:
+Pull and run slim:
 
 ```bash
-docker pull ghcr.io/lithoscomputer/ubuntu-24.04-slim:latest
-```
-
-Run a command:
-
-```bash
+docker pull ghcr.io/lithoscomputer/ubuntu-24.04:slim
 docker run --rm \
-  ghcr.io/lithoscomputer/ubuntu-24.04-slim:latest \
+  ghcr.io/lithoscomputer/ubuntu-24.04:slim \
   gh --version
 ```
 
-Pin a maintained image:
-
-```text
-ghcr.io/lithoscomputer/ubuntu-24.04-dind:sha-<commit>-snapshot-<YYYYMMDD>
-```
-
-The packages are private until their visibility is changed. Authenticate with a token that has package read access before pulling them:
+Start Docker-in-Docker:
 
 ```bash
-docker login ghcr.io
+docker run --rm --privileged \
+  ghcr.io/lithoscomputer/ubuntu-24.04:dind \
+  bash -lc 'start-docker && docker info'
 ```
+
+Run Chrome with additional shared memory:
+
+```bash
+docker run --rm --shm-size=1g \
+  ghcr.io/lithoscomputer/ubuntu-24.04:chrome \
+  chrome --version
+```
+
+Public packages can be pulled anonymously. No GHCR login is required.
 
 ## Technical reference
 
