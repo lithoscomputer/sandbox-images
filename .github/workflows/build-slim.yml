@@ -25,9 +25,7 @@ on:
         options: [all, "22.04", "24.04", "26.04"]
         default: all
 
-permissions:
-  contents: read
-  packages: write
+permissions: {}
 
 concurrency:
   group: slim-${{ github.ref }}
@@ -37,6 +35,9 @@ jobs:
   build:
     name: Ubuntu ${{ matrix.ubuntu }} slim
     runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write # Needed to publish images to GHCR
     strategy:
       fail-fast: false
       matrix:
