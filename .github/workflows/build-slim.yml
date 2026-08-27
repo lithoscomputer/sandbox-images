@@ -10,6 +10,7 @@ on:
       - scripts/chrome/**
       - scripts/image-aliases.sh
       - tests/verify-image.sh
+      - tests/smoke-runtime.sh
   push:
     branches: [main]
     paths:
@@ -20,6 +21,7 @@ on:
       - scripts/chrome/**
       - scripts/image-aliases.sh
       - tests/verify-image.sh
+      - tests/smoke-runtime.sh
   schedule:
     # Daily at an off-peak minute. The build uses a 48-hour-old apt snapshot.
     - cron: "23 5 * * *"
@@ -117,12 +119,14 @@ jobs:
             scripts/image-aliases.sh "$owner" "$MATRIX_UBUNTU" "$MATRIX_FLAVOR"
           )
           image="ghcr.io/${packages[0]}"
+          smoke_image="ghcr.io/${packages[${#packages[@]} - 1]}"
           snapshot="$(date -u -d '48 hours ago' '+%Y%m%dT000000Z')"
           created="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
           short_sha="${GITHUB_SHA::12}"
           snapshot_date="${snapshot:0:8}"
           {
             echo "image=${image}"
+            echo "smoke_image=${smoke_image}"
             echo "snapshot=${snapshot}"
             echo "created=${created}"
             echo "short_sha=${short_sha}"
@@ -202,4 +206,28 @@ jobs:
           STEPS_METADATA_OUTPUTS_SHORT_SHA: ${{ steps.metadata.outputs.short_sha }}
           STEPS_METADATA_OUTPUTS_SNAPSHOT_DATE: ${{ steps.metadata.outputs.snapshot_date }}
           MATRIX_UBUNTU: ${{ matrix.ubuntu }}
+          MATRIX_FLAVOR: ${{ matrix.flavor }}
+
+      - name: Runtime smoke test
+        if: github.event_name != 'pull_request' && matrix.flavor != 'slim'
+        shell: bash
+        run: |
+          smoke_ref="${STEPS_METADATA_OUTPUTS_SMOKE_IMAGE}:sha-${STEPS_METADATA_OUTPUTS_SHORT_SHA}-snapshot-${STEPS_METADATA_OUTPUTS_SNAPSHOT_DATE}"
+          docker_args=(
+            --rm
+            --platform linux/amd64
+            --volume "$PWD/tests:/tests:ro"
+          )
+          case "$MATRIX_FLAVOR" in
+            dind) docker_args+=(--privileged) ;;
+            chrome) docker_args+=(--shm-size=1g) ;;
+            dind-chrome) docker_args+=(--privileged --shm-size=1g) ;;
+          esac
+          docker run "${docker_args[@]}" \
+            "$smoke_ref" \
+            /tests/smoke-runtime.sh "$MATRIX_FLAVOR"
+        env:
+          STEPS_METADATA_OUTPUTS_SMOKE_IMAGE: ${{ steps.metadata.outputs.smoke_image }}
+          STEPS_METADATA_OUTPUTS_SHORT_SHA: ${{ steps.metadata.outputs.short_sha }}
+          STEPS_METADATA_OUTPUTS_SNAPSHOT_DATE: ${{ steps.metadata.outputs.snapshot_date }}
           MATRIX_FLAVOR: ${{ matrix.flavor }}

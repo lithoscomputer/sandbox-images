@@ -23,7 +23,7 @@ jobs:
           persist-credentials: false
 
       - name: Check shell scripts
-        run: shellcheck scripts/image-aliases.sh scripts/slim/install.sh scripts/dind/install.sh scripts/dind/start-docker scripts/chrome/install.sh scripts/full/capture-layer.sh tests/image-aliases.sh tests/verify-docs.sh tests/verify-image.sh
+        run: shellcheck scripts/image-aliases.sh scripts/slim/install.sh scripts/dind/install.sh scripts/dind/start-docker scripts/chrome/install.sh scripts/full/capture-layer.sh tests/image-aliases.sh tests/smoke-runtime.sh tests/verify-docs.sh tests/verify-image.sh
 
       - name: Test image aliases
         run: tests/image-aliases.sh
@@ -32,7 +32,7 @@ jobs:
         run: tests/verify-docs.sh
 
       - name: Check JavaScript
-        run: node --check scripts/full/registry.mjs
+        run: node --check scripts/full/registry.mjs && node --check scripts/aliases/registry.mjs
 
       - name: Test registry uploader
         run: node tests/registry-upload.mjs
@@ -41,7 +41,7 @@ jobs:
         run: node tests/registry-aliases.mjs
 
       - name: Check executable files
-        run: test -x scripts/image-aliases.sh && test -x scripts/slim/install.sh && test -x scripts/dind/install.sh && test -x scripts/dind/start-docker && test -x scripts/chrome/install.sh && test -x scripts/full/capture-layer.sh && test -x tests/image-aliases.sh && test -x tests/verify-docs.sh && test -x tests/verify-image.sh
+        run: test -x scripts/image-aliases.sh && test -x scripts/slim/install.sh && test -x scripts/dind/install.sh && test -x scripts/dind/start-docker && test -x scripts/chrome/install.sh && test -x scripts/full/capture-layer.sh && test -x tests/image-aliases.sh && test -x tests/smoke-runtime.sh && test -x tests/verify-docs.sh && test -x tests/verify-image.sh
 
   dockerfile:
     name: Dockerfile check (${{ matrix.ubuntu }} ${{ matrix.flavor }})

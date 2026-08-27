@@ -32,6 +32,9 @@ for required_text in \
   'DOCKER_PROVIDER_WAIT_SECONDS' \
   'AGENT_BROWSER_EXECUTABLE_PATH' \
   'start-docker' \
+  'runtime smoke test' \
+  'Daytona validation' \
+  'immutable image tag' \
   "no custom \`ENTRYPOINT\`"; do
   if ! grep -Fq "$required_text" "$documentation"; then
     echo "Image contract is missing from ${documentation}: ${required_text}" >&2

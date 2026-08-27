@@ -92,8 +92,9 @@ Each full-image alias package receives these same tags.
 
 ## Updates and workflows
 
-- `build-slim.yml` builds the three slim images and the three Ubuntu 24.04 focused variants each day and when their definitions change. It uses an Ubuntu package snapshot from 48 hours before the build. Manual runs can select a release and flavor. Pull requests build without pushing.
-- `build-full.yml` checks all three GitHub runner versions each day. It skips a capture when that `ImageVersion` tag already exists in GHCR. A change to the full-image workflow or scripts forces a new capture. Manual runs can select releases and force a recapture. Capture jobs run one at a time because each upload is large.
+- `build-slim.yml` builds the three slim images and the three Ubuntu 24.04 focused variants each day and when their definitions change. It uses an Ubuntu package snapshot from 48 hours before the build. Manual runs can select a release and flavor. Pull requests build without pushing. Published Dind and Chrome variants also run a functional Docker or browser smoke test.
+- `build-full.yml` checks all three GitHub runner versions each day. It skips a capture when that `ImageVersion` tag already exists in GHCR. A change to the full-image workflow or capture scripts forces a new capture. Manual runs can select releases and force a recapture. The three captures can run concurrently.
+- `sync-full-aliases.yml` copies the current canonical full manifests to every full-image alias. Alias mapping changes run this small workflow without capturing the runner filesystems again. A completed full capture also calls it.
 - `validate.yml` checks scripts and Dockerfile structure.
 
 The daily schedules use off-peak minutes because GitHub can delay scheduled workflows during high load. GitHub normally updates runner images weekly, and its deployment can take two to three days. A daily version check catches each release after it reaches the runner pool without uploading an unchanged filesystem each day.

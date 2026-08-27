@@ -23,6 +23,9 @@ const manifest = Buffer.from(JSON.stringify({
     size: 20,
     digest: digests[1],
   }],
+  annotations: {
+    "org.opencontainers.image.version": sourceTag,
+  },
 }));
 const mounted = [];
 const published = [];
@@ -84,12 +87,13 @@ try {
   const child = spawn(
     process.execPath,
     [
-      "scripts/full/registry.mjs",
-      "publish-aliases",
+      "scripts/aliases/registry.mjs",
+      "publish",
       "--source-tag",
       sourceTag,
       "--tags",
-      tags.join(","),
+      "latest",
+      "--include-version-tag",
     ],
     {
       env: {
