@@ -37,7 +37,7 @@ jobs:
     timeout-minutes: 360
     strategy:
       fail-fast: false
-      max-parallel: 1
+      max-parallel: 3
       matrix:
         ubuntu: ${{ fromJSON(github.event_name == 'workflow_dispatch' && inputs.ubuntu != 'all' && format('["{0}"]', inputs.ubuntu) || '["22.04","24.04","26.04"]') }}
 
