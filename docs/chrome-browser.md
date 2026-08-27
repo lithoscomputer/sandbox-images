@@ -84,7 +84,7 @@ Give Chrome enough shared memory for the workload. A direct Docker example uses 
 
 ```bash
 docker run --rm -it --shm-size=1g \
-  ghcr.io/lithoscomputer/ubuntu-24.04-chrome:<tag>
+  ghcr.io/lithoscomputer/ubuntu-24.04:chrome
 ```
 
 ## Automated validation

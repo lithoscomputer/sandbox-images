@@ -4,7 +4,6 @@ on:
   push:
     branches: [main]
     paths:
-      - .github/workflows/build-full.yml
       - scripts/full/**
   schedule:
     # Runner images update weekly, but deployment can take several days.
@@ -61,7 +60,7 @@ jobs:
           owner="${GITHUB_REPOSITORY_OWNER,,}"
           version="$(sed -n -E 's/^ImageVersion="?([^"[:space:]]+)"?$/\1/p' /etc/environment)"
           test -n "$version"
-          echo "IMAGE=${owner}/gha-ubuntu-${MATRIX_UBUNTU}-full" >>"$GITHUB_ENV"
+          echo "IMAGE=${owner}/ubuntu-${MATRIX_UBUNTU}-full" >>"$GITHUB_ENV"
           echo "IMAGE_VERSION=${version}" >>"$GITHUB_ENV"
         env:
           MATRIX_UBUNTU: ${{ matrix.ubuntu }}
@@ -93,11 +92,3 @@ jobs:
       - name: Report unchanged image
         if: steps.existing.outputs.exists == 'true' && github.event_name != 'push' && !inputs.force
         run: echo "ghcr.io/${IMAGE}:${IMAGE_VERSION} already exists; capture skipped"
-
-  sync-aliases:
-    name: Sync full image aliases
-    needs: capture
-    permissions:
-      contents: read
-      packages: write # Passed to the reusable workflow so it can publish GHCR aliases
-    uses: ./.github/workflows/sync-full-aliases.yml

@@ -62,6 +62,6 @@ The daily workflow checks the `ImageVersion` on each GitHub runner. It skips fil
 - `latest`.
 - The GitHub runner `ImageVersion`.
 
-Alias synchronization is separate from filesystem capture. An alias mapping change can copy the existing manifests without capturing the runner filesystem again.
+Full images publish directly to a package named `ubuntu-<version>-full`. They do not publish package aliases.
 
 See [Image contract](image-contract.md) for the shared process, path, and runtime behavior.

@@ -25,7 +25,7 @@ The images have no custom `ENTRYPOINT`. A command supplied by the caller runs no
 
 ```bash
 docker run --rm \
-  ghcr.io/lithoscomputer/ubuntu-24.04-slim:<tag> \
+  ghcr.io/lithoscomputer/ubuntu-24.04:slim \
   gh --version
 ```
 
@@ -33,7 +33,7 @@ Running an image without a command starts Bash:
 
 ```bash
 docker run --rm -it \
-  ghcr.io/lithoscomputer/ubuntu-24.04-slim:<tag>
+  ghcr.io/lithoscomputer/ubuntu-24.04:slim
 ```
 
 The Dind images do not start Docker through an entrypoint. Run `start-docker` after the container or sandbox starts. See [Docker-in-Docker](docker-in-docker.md).
