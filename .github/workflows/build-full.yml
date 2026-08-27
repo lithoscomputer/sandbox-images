@@ -6,6 +6,7 @@ on:
     paths:
       - .github/workflows/build-full.yml
       - scripts/full/**
+      - scripts/image-aliases.sh
   schedule:
     # Runner images update weekly, but deployment can take several days.
     # Check daily and skip capture when the runner ImageVersion already exists.
@@ -61,8 +62,16 @@ jobs:
           owner="${GITHUB_REPOSITORY_OWNER,,}"
           version="$(sed -n -E 's/^ImageVersion="?([^"[:space:]]+)"?$/\1/p' /etc/environment)"
           test -n "$version"
-          echo "IMAGE=${owner}/gha-ubuntu-${MATRIX_UBUNTU}-full" >>"$GITHUB_ENV"
-          echo "IMAGE_VERSION=${version}" >>"$GITHUB_ENV"
+          mapfile -t packages < <(
+            scripts/image-aliases.sh "$owner" "$MATRIX_UBUNTU" full
+          )
+          {
+            echo "IMAGE=${packages[0]}"
+            echo "IMAGE_VERSION=${version}"
+            echo 'IMAGE_ALIASES<<EOF'
+            printf '%s\n' "${packages[@]:1}"
+            echo 'EOF'
+          } >>"$GITHUB_ENV"
         env:
           MATRIX_UBUNTU: ${{ matrix.ubuntu }}
 
@@ -89,6 +98,9 @@ jobs:
       - name: Publish image manifest
         if: steps.existing.outputs.exists != 'true' || github.event_name == 'push' || inputs.force
         run: node scripts/full/registry.mjs publish --metadata-dir "$LAYER_METADATA_DIR"
+
+      - name: Publish image aliases
+        run: node scripts/full/registry.mjs publish-aliases --source-tag "$IMAGE_VERSION" --tags "latest,$IMAGE_VERSION"
 
       - name: Report unchanged image
         if: steps.existing.outputs.exists == 'true' && github.event_name != 'push' && !inputs.force

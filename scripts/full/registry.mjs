@@ -8,8 +8,17 @@ const registry = process.env.REGISTRY || "https://ghcr.io";
 const image = requiredEnv("IMAGE").toLowerCase();
 const actor = requiredEnv("GITHUB_ACTOR");
 const githubToken = requiredEnv("GITHUB_TOKEN");
+const aliasImages = [...new Set(
+  (process.env.IMAGE_ALIASES || "")
+    .split(/\s+/)
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean),
+)];
 let cachedToken;
 let cachedTokenExpiresAt = 0;
+const cachedAliasTokens = new Map();
+
+if (aliasImages.includes(image)) throw new Error("IMAGE_ALIASES must not include IMAGE");
 
 function requiredEnv(name) {
   const value = process.env[name];
@@ -40,6 +49,30 @@ async function token(forceRefresh = false) {
   return cachedToken;
 }
 
+async function aliasToken(aliasImage, forceRefresh = false) {
+  const cached = cachedAliasTokens.get(aliasImage);
+  if (!forceRefresh && cached && Date.now() < cached.expiresAt) return cached.token;
+
+  const basic = Buffer.from(`${actor}:${githubToken}`).toString("base64");
+  const tokenUrl = new URL(`${registry}/token`);
+  tokenUrl.searchParams.set("service", "ghcr.io");
+  tokenUrl.searchParams.append("scope", `repository:${aliasImage}:pull,push`);
+  tokenUrl.searchParams.append("scope", `repository:${image}:pull`);
+  const response = await fetch(tokenUrl, {
+    headers: { Authorization: `Basic ${basic}` },
+  });
+  if (!response.ok) {
+    throw new Error(`GHCR alias authentication failed for ${aliasImage}: ${response.status}`);
+  }
+  const credentials = await response.json();
+  const expiresIn = Number(credentials.expires_in);
+  const expiresAt = Date.now()
+    + (Number.isFinite(expiresIn) ? expiresIn * 1000 : 60_000)
+    - 30_000;
+  cachedAliasTokens.set(aliasImage, { token: credentials.token, expiresAt });
+  return credentials.token;
+}
+
 function absoluteLocation(location) {
   if (!location) throw new Error("GHCR did not return an upload location");
   return location.startsWith("http") ? location : `${registry}${location}`;
@@ -51,6 +84,23 @@ async function request(url, options = {}) {
     headers: {
       ...options.headers,
       Authorization: `Bearer ${await token(forceRefresh)}`,
+    },
+  });
+  let response = await send();
+  if (response.status === 401) response = await send(true);
+  if (!response.ok) {
+    const body = await response.text();
+    throw new Error(`${options.method || "GET"} ${url}: ${response.status} ${body}`);
+  }
+  return response;
+}
+
+async function aliasRequest(aliasImage, url, options = {}) {
+  const send = async (forceRefresh = false) => fetch(url, {
+    ...options,
+    headers: {
+      ...options.headers,
+      Authorization: `Bearer ${await aliasToken(aliasImage, forceRefresh)}`,
     },
   });
   let response = await send();
@@ -282,8 +332,67 @@ async function publish() {
   }
 }
 
+async function mountBlob(aliasImage, digest) {
+  const uploadUrl = new URL(`${registry}/v2/${aliasImage}/blobs/uploads/`);
+  uploadUrl.searchParams.set("mount", digest);
+  uploadUrl.searchParams.set("from", image);
+  const response = await aliasRequest(aliasImage, uploadUrl, { method: "POST" });
+  if (response.status !== 201) {
+    throw new Error(
+      `GHCR could not mount ${digest} from ${image} into ${aliasImage}: ${response.status}`,
+    );
+  }
+}
+
+async function publishAliases() {
+  const sourceTag = option("--source-tag");
+  const tags = option("--tags").split(",").map((tag) => tag.trim()).filter(Boolean);
+  if (tags.length === 0) throw new Error("--tags must contain at least one tag");
+  if (aliasImages.length === 0) {
+    console.log("No image aliases were configured");
+    return;
+  }
+
+  const response = await request(
+    `${registry}/v2/${image}/manifests/${encodeURIComponent(sourceTag)}`,
+    {
+      headers: {
+        Accept: "application/vnd.oci.image.manifest.v1+json",
+      },
+    },
+  );
+  const contentType = response.headers.get("content-type")
+    || "application/vnd.oci.image.manifest.v1+json";
+  const manifest = Buffer.from(await response.arrayBuffer());
+  const parsedManifest = JSON.parse(manifest);
+  const descriptors = [parsedManifest.config, ...(parsedManifest.layers || [])];
+  if (descriptors.some((descriptor) => !descriptor?.digest)) {
+    throw new Error("Source manifest contains a descriptor without a digest");
+  }
+
+  for (const aliasImage of aliasImages) {
+    for (const descriptor of descriptors) {
+      await mountBlob(aliasImage, descriptor.digest);
+    }
+    for (const tag of tags) {
+      await aliasRequest(
+        aliasImage,
+        `${registry}/v2/${aliasImage}/manifests/${encodeURIComponent(tag)}`,
+        {
+          method: "PUT",
+          body: manifest,
+          duplex: "half",
+          headers: { "Content-Type": contentType },
+        },
+      );
+      console.log(`Published alias ${registry.slice(8)}/${aliasImage}:${tag}`);
+    }
+  }
+}
+
 const command = process.argv[2];
 if (command === "upload-layer") await uploadLayer();
 else if (command === "publish") await publish();
+else if (command === "publish-aliases") await publishAliases();
 else if (command === "manifest-exists") await manifestExists();
 else throw new Error(`Unknown command: ${command}`);

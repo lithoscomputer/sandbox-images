@@ -18,6 +18,46 @@ Sizes are estimates from an Ubuntu 24.04 x86-64 build. Package updates can chang
 
 All images use `linux/amd64`. The focused Dind and Chrome variants are available only for Ubuntu 24.04.
 
+## Image aliases
+
+Use image names below the `ghcr.io/lithoscomputer/` namespace. The `gha-` prefix is optional. Omitting the flavor selects `full`.
+
+Version-specific aliases are:
+
+| Alias | Canonical image |
+| --- | --- |
+| `ubuntu-22.04` | `gha-ubuntu-22.04-full` |
+| `ubuntu-22.04-full` | `gha-ubuntu-22.04-full` |
+| `ubuntu-22.04-slim` | `gha-ubuntu-22.04-slim` |
+| `ubuntu-24.04` | `gha-ubuntu-24.04-full` |
+| `ubuntu-24.04-full` | `gha-ubuntu-24.04-full` |
+| `ubuntu-24.04-slim` | `gha-ubuntu-24.04-slim` |
+| `ubuntu-24.04-dind` | `gha-ubuntu-24.04-dind` |
+| `ubuntu-24.04-chrome` | `gha-ubuntu-24.04-chrome` |
+| `ubuntu-24.04-dind-chrome` | `gha-ubuntu-24.04-dind-chrome` |
+| `ubuntu-26.04` | `gha-ubuntu-26.04-full` |
+| `ubuntu-26.04-full` | `gha-ubuntu-26.04-full` |
+| `ubuntu-26.04-slim` | `gha-ubuntu-26.04-slim` |
+
+The corresponding `gha-` aliases without a flavor also select full: `gha-ubuntu-22.04`, `gha-ubuntu-24.04`, and `gha-ubuntu-26.04`.
+
+Moving aliases currently select Ubuntu 24.04:
+
+| Alias | Canonical image |
+| --- | --- |
+| `ubuntu-latest` | `gha-ubuntu-24.04-full` |
+| `ubuntu-latest-full` | `gha-ubuntu-24.04-full` |
+| `ubuntu-latest-slim` | `gha-ubuntu-24.04-slim` |
+| `ubuntu-latest-dind` | `gha-ubuntu-24.04-dind` |
+| `ubuntu-latest-chrome` | `gha-ubuntu-24.04-chrome` |
+| `ubuntu-latest-dind-chrome` | `gha-ubuntu-24.04-dind-chrome` |
+
+Each moving alias also works with the `gha-` prefix. For example, `gha-ubuntu-latest` selects full and `gha-ubuntu-latest-chrome` selects Chrome.
+
+Explicit Ubuntu versions do not move. The repository will move the `ubuntu-latest` family only through a deliberate mapping change. Dind and Chrome aliases do not exist for Ubuntu 22.04 or 26.04.
+
+Alias packages receive the same tags and reference the same image manifest as the canonical package. Maintained aliases receive `latest`, `snapshot-<YYYYMMDD>`, and immutable commit-and-snapshot tags. Full aliases receive `latest` and the GitHub runner `ImageVersion` tag.
+
 ## Shared slim contents
 
 Every slim-based image starts from the matching `ubuntu:<version>` image. The build explicitly installs these Ubuntu packages with `--no-install-recommends`:

@@ -24,6 +24,10 @@ for required_text in \
   'gha-ubuntu-24.04-dind' \
   'gha-ubuntu-24.04-chrome' \
   'gha-ubuntu-24.04-dind-chrome' \
+  'ubuntu-24.04' \
+  'ubuntu-latest' \
+  'ubuntu-latest-slim' \
+  'ubuntu-latest-dind-chrome' \
   'LANG=C.UTF-8' \
   'DOCKER_PROVIDER_WAIT_SECONDS' \
   'AGENT_BROWSER_EXECUTABLE_PATH' \

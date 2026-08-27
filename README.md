@@ -18,6 +18,26 @@ Ubuntu 26.04 is currently a public-preview GitHub Actions runner image. Its cont
 
 See [Choosing an image](docs/image-selection.md) for the slim package list, major omissions, and full-image software inventories.
 
+## Image aliases
+
+The `gha-` prefix is optional. An image name without a flavor selects `full`. The moving `ubuntu-latest` names currently select Ubuntu 24.04.
+
+Examples:
+
+| Image name | Canonical image |
+| --- | --- |
+| `ubuntu-22.04` | `gha-ubuntu-22.04-full` |
+| `ubuntu-24.04-slim` | `gha-ubuntu-24.04-slim` |
+| `ubuntu-latest` | `gha-ubuntu-24.04-full` |
+| `ubuntu-latest-slim` | `gha-ubuntu-24.04-slim` |
+| `ubuntu-latest-dind` | `gha-ubuntu-24.04-dind` |
+| `ubuntu-latest-chrome` | `gha-ubuntu-24.04-chrome` |
+| `ubuntu-latest-dind-chrome` | `gha-ubuntu-24.04-dind-chrome` |
+
+The equivalent aliases with the `gha-` prefix also work, such as `gha-ubuntu-24.04` and `gha-ubuntu-latest-slim`. Explicit Ubuntu versions do not move. The repository will change the `ubuntu-latest` target only through a deliberate update.
+
+Aliases receive the same tags and reference the same image content as their canonical package. See [Choosing an image](docs/image-selection.md#image-aliases) for the complete mapping.
+
 ## Slim images
 
 Slim images start from the matching official Ubuntu container image. They include common command-line tools and compatibility paths used by GitHub Actions. The design follows ideas from:
@@ -61,12 +81,14 @@ Maintained builds publish:
 - `snapshot-<YYYYMMDD>`
 - `sha-<12-character-commit>-snapshot-<YYYYMMDD>`
 
+Each maintained alias package receives these same tags.
+
 Full captures publish:
 
 - `latest`
 - the GitHub runner `ImageVersion` value
 
-Aliases across Ubuntu versions are intentionally out of scope.
+Each full-image alias package receives these same tags.
 
 ## Updates and workflows
 

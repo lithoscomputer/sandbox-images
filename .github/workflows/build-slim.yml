@@ -8,6 +8,7 @@ on:
       - scripts/slim/**
       - scripts/dind/**
       - scripts/chrome/**
+      - scripts/image-aliases.sh
       - tests/verify-image.sh
   push:
     branches: [main]
@@ -17,6 +18,7 @@ on:
       - scripts/slim/**
       - scripts/dind/**
       - scripts/chrome/**
+      - scripts/image-aliases.sh
       - tests/verify-image.sh
   schedule:
     # Daily at an off-peak minute. The build uses a 48-hour-old apt snapshot.
@@ -111,7 +113,10 @@ jobs:
         shell: bash
         run: |
           owner="${GITHUB_REPOSITORY_OWNER,,}"
-          image="ghcr.io/${owner}/gha-ubuntu-${MATRIX_UBUNTU}-${MATRIX_FLAVOR}"
+          mapfile -t packages < <(
+            scripts/image-aliases.sh "$owner" "$MATRIX_UBUNTU" "$MATRIX_FLAVOR"
+          )
+          image="ghcr.io/${packages[0]}"
           snapshot="$(date -u -d '48 hours ago' '+%Y%m%dT000000Z')"
           created="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
           short_sha="${GITHUB_SHA::12}"
@@ -122,6 +127,18 @@ jobs:
             echo "created=${created}"
             echo "short_sha=${short_sha}"
             echo "snapshot_date=${snapshot_date}"
+            echo 'images<<EOF'
+            for package in "${packages[@]}"; do
+              echo "ghcr.io/${package}"
+            done
+            echo 'EOF'
+            echo 'tags<<EOF'
+            for package in "${packages[@]}"; do
+              echo "ghcr.io/${package}:latest"
+              echo "ghcr.io/${package}:snapshot-${snapshot_date}"
+              echo "ghcr.io/${package}:sha-${short_sha}-snapshot-${snapshot_date}"
+            done
+            echo 'EOF'
           } >>"$GITHUB_OUTPUT"
         env:
           MATRIX_UBUNTU: ${{ matrix.ubuntu }}
@@ -151,9 +168,7 @@ jobs:
             APT_SNAPSHOT=${{ steps.metadata.outputs.snapshot }}
             GITHUB_REPOSITORY=${{ github.repository }}
           tags: |
-            ${{ steps.metadata.outputs.image }}:latest
-            ${{ steps.metadata.outputs.image }}:snapshot-${{ steps.metadata.outputs.snapshot_date }}
-            ${{ steps.metadata.outputs.image }}:sha-${{ steps.metadata.outputs.short_sha }}-snapshot-${{ steps.metadata.outputs.snapshot_date }}
+            ${{ steps.metadata.outputs.tags }}
           labels: |
             org.opencontainers.image.created=${{ steps.metadata.outputs.created }}
             org.opencontainers.image.revision=${{ github.sha }}
@@ -168,13 +183,22 @@ jobs:
       - name: Verify published image
         if: github.event_name != 'pull_request'
         run: |
+          canonical_ref="${STEPS_METADATA_OUTPUTS_IMAGE}:sha-${STEPS_METADATA_OUTPUTS_SHORT_SHA}-snapshot-${STEPS_METADATA_OUTPUTS_SNAPSHOT_DATE}"
           docker run --rm \
             --platform linux/amd64 \
             --volume "$PWD/tests:/tests:ro" \
-            "${STEPS_METADATA_OUTPUTS_IMAGE}:sha-${STEPS_METADATA_OUTPUTS_SHORT_SHA}-snapshot-${STEPS_METADATA_OUTPUTS_SNAPSHOT_DATE}" \
+            "$canonical_ref" \
             /tests/verify-image.sh "${MATRIX_UBUNTU}" "${MATRIX_FLAVOR}"
+
+          canonical_id="$(docker image inspect --format '{{.Id}}' "$canonical_ref")"
+          while IFS= read -r image; do
+            alias_ref="${image}:sha-${STEPS_METADATA_OUTPUTS_SHORT_SHA}-snapshot-${STEPS_METADATA_OUTPUTS_SNAPSHOT_DATE}"
+            docker pull --platform linux/amd64 "$alias_ref"
+            test "$(docker image inspect --format '{{.Id}}' "$alias_ref")" = "$canonical_id"
+          done <<<"$STEPS_METADATA_OUTPUTS_IMAGES"
         env:
           STEPS_METADATA_OUTPUTS_IMAGE: ${{ steps.metadata.outputs.image }}
+          STEPS_METADATA_OUTPUTS_IMAGES: ${{ steps.metadata.outputs.images }}
           STEPS_METADATA_OUTPUTS_SHORT_SHA: ${{ steps.metadata.outputs.short_sha }}
           STEPS_METADATA_OUTPUTS_SNAPSHOT_DATE: ${{ steps.metadata.outputs.snapshot_date }}
           MATRIX_UBUNTU: ${{ matrix.ubuntu }}
