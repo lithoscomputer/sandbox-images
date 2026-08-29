@@ -24,7 +24,9 @@ findmnt --version >/dev/null
 # set GitHub's ubuntu-slim ships. Ruby builds from ruby/setup-ruby load libyaml
 # through psych on every `gem` invocation; the headers and pkg-config serve
 # native-extension builds inside actions (setup-ruby's bundler-cache).
-ldconfig -p | grep -qF libyaml-0.so.2
+# No `grep -q` here: under pipefail its early exit turns ldconfig's SIGPIPE
+# into status 141.
+ldconfig -p | grep -F libyaml-0.so.2 >/dev/null
 pkg-config --exists yaml-0.1 openssl sqlite3
 
 test -d /opt/hostedtoolcache
