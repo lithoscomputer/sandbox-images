@@ -39,9 +39,13 @@ packages=(
   gnupg
   iproute2
   jq
+  libsqlite3-dev
+  libssl-dev
+  libyaml-dev
   locales
   openssh-client
   pipx
+  pkg-config
   procps
   python3
   python3-jsonschema
