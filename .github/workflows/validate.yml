@@ -31,6 +31,9 @@ jobs:
       - name: Test registry uploader
         run: node tests/registry-upload.mjs
 
+      - name: Test full image publisher
+        run: node tests/registry-publish.mjs
+
       - name: Test registry image copy
         run: node tests/registry-copy.mjs
 
@@ -46,21 +49,27 @@ jobs:
           - ubuntu: "22.04"
             image_os: ubuntu22
             flavor: slim
+            platforms: linux/amd64,linux/arm64
           - ubuntu: "24.04"
             image_os: ubuntu24
             flavor: slim
+            platforms: linux/amd64,linux/arm64
           - ubuntu: "24.04"
             image_os: ubuntu24
             flavor: dind
+            platforms: linux/amd64,linux/arm64
           - ubuntu: "24.04"
             image_os: ubuntu24
             flavor: chrome
+            platforms: linux/amd64
           - ubuntu: "24.04"
             image_os: ubuntu24
             flavor: dind-chrome
+            platforms: linux/amd64
           - ubuntu: "26.04"
             image_os: ubuntu26
             flavor: slim
+            platforms: linux/amd64,linux/arm64
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -72,7 +81,7 @@ jobs:
           context: .
           file: Dockerfile.slim
           target: ${{ matrix.flavor }}
-          platforms: linux/amd64
+          platforms: ${{ matrix.platforms }}
           call: check
           build-args: |
             UBUNTU_VERSION=${{ matrix.ubuntu }}

@@ -2,6 +2,8 @@
 
 The `dind` and `dind-chrome` flavors add a maintained Docker environment to the Ubuntu 24.04 slim image.
 
+The `dind` tag supports `linux/amd64` and `linux/arm64`. The `dind-chrome` tag supports only `linux/amd64` because of the Chrome dependency.
+
 ## Installed software
 
 The images add:
@@ -71,6 +73,6 @@ The GHCR packages are public and can be pulled without registry credentials. The
 
 ## Automated validation
 
-After publishing a `dind` image, GitHub Actions runs a runtime smoke test in a privileged container. The test runs `start-docker` and builds a local `amd64` image from `scratch`. The `dind-chrome` flavor runs the same Docker check before its browser check.
+Before publishing a `dind` image index, GitHub Actions tests each platform in a privileged container. The test runs `start-docker` and builds a local native-platform image from `scratch`. The AMD64-only `dind-chrome` flavor runs the same Docker check before its browser check.
 
 See [Slim images](slim-images.md#measured-size-and-daytona-validation) for measured filesystem sizes and Daytona startup times.

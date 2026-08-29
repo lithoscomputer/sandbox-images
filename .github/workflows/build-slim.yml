@@ -7,6 +7,7 @@ on:
       - scripts/slim/**
       - scripts/dind/**
       - scripts/chrome/**
+      - scripts/registry/**
       - tests/verify-image.sh
       - tests/smoke-runtime.sh
   push:
@@ -16,6 +17,7 @@ on:
       - scripts/slim/**
       - scripts/dind/**
       - scripts/chrome/**
+      - scripts/registry/**
       - tests/verify-image.sh
       - tests/smoke-runtime.sh
   schedule:
@@ -37,7 +39,7 @@ on:
 permissions: {}
 
 concurrency:
-  group: maintained-images-${{ github.ref }}
+  group: ${{ github.event_name == 'pull_request' && format('maintained-images-pr-{0}', github.event.pull_request.number) || 'maintained-images-publish' }}
   cancel-in-progress: false
 
 jobs:
@@ -45,18 +47,21 @@ jobs:
     name: Select images
     runs-on: ubuntu-24.04
     outputs:
-      matrix: ${{ steps.matrix.outputs.matrix }}
+      build_matrix: ${{ steps.matrix.outputs.build_matrix }}
+      publish_matrix: ${{ steps.matrix.outputs.publish_matrix }}
     steps:
       - name: Build matrix
         id: matrix
         shell: bash
         run: |
-          selected='[]'
+          selected_builds='[]'
+          selected_publications='[]'
 
           add_image() {
             ubuntu=$1
             image_os=$2
             flavor=$3
+            architectures=$4
 
             if [[ "$INPUT_UBUNTU" != all && "$INPUT_UBUNTU" != "$ubuntu" ]]; then
               return
@@ -65,41 +70,55 @@ jobs:
               return
             fi
 
-            selected="$(jq --compact-output \
+            selected_publications="$(jq --compact-output \
               --arg ubuntu "$ubuntu" \
               --arg image_os "$image_os" \
               --arg flavor "$flavor" \
-              '. + [{ubuntu: $ubuntu, image_os: $image_os, flavor: $flavor, target: $flavor}]' \
-              <<<"$selected")"
+              --argjson architectures "$architectures" \
+              '. + [{ubuntu: $ubuntu, image_os: $image_os, flavor: $flavor, target: $flavor, architectures: $architectures}]' \
+              <<<"$selected_publications")"
+
+            while read -r architecture; do
+              selected_builds="$(jq --compact-output \
+                --arg ubuntu "$ubuntu" \
+                --arg image_os "$image_os" \
+                --arg flavor "$flavor" \
+                --arg architecture "$architecture" \
+                '. + [{ubuntu: $ubuntu, image_os: $image_os, flavor: $flavor, target: $flavor, architecture: $architecture}]' \
+                <<<"$selected_builds")"
+            done < <(jq -r '.[]' <<<"$architectures")
           }
 
-          add_image 22.04 ubuntu22 slim
-          add_image 24.04 ubuntu24 slim
-          add_image 24.04 ubuntu24 dind
-          add_image 24.04 ubuntu24 chrome
-          add_image 24.04 ubuntu24 dind-chrome
-          add_image 26.04 ubuntu26 slim
+          add_image 22.04 ubuntu22 slim '["amd64","arm64"]'
+          add_image 24.04 ubuntu24 slim '["amd64","arm64"]'
+          add_image 24.04 ubuntu24 dind '["amd64","arm64"]'
+          add_image 24.04 ubuntu24 chrome '["amd64"]'
+          add_image 24.04 ubuntu24 dind-chrome '["amd64"]'
+          add_image 26.04 ubuntu26 slim '["amd64","arm64"]'
 
-          if [[ "$(jq length <<<"$selected")" -eq 0 ]]; then
+          if [[ "$(jq length <<<"$selected_builds")" -eq 0 ]]; then
             echo "The selected flavor is not available for Ubuntu $INPUT_UBUNTU" >&2
             exit 1
           fi
-          echo "matrix={\"include\":${selected}}" >>"$GITHUB_OUTPUT"
+          {
+            echo "build_matrix={\"include\":${selected_builds}}"
+            echo "publish_matrix={\"include\":${selected_publications}}"
+          } >>"$GITHUB_OUTPUT"
         env:
           INPUT_UBUNTU: ${{ github.event_name == 'workflow_dispatch' && inputs.ubuntu || 'all' }}
           INPUT_FLAVOR: ${{ github.event_name == 'workflow_dispatch' && inputs.flavor || 'all' }}
 
   build:
-    name: Ubuntu ${{ matrix.ubuntu }} ${{ matrix.flavor }}
+    name: Ubuntu ${{ matrix.ubuntu }} ${{ matrix.flavor }} (${{ matrix.architecture }})
     needs: prepare
-    runs-on: ubuntu-24.04
+    runs-on: ${{ matrix.architecture == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
     timeout-minutes: 90
     permissions:
       contents: read
       packages: write # Needed to publish images to GHCR
     strategy:
       fail-fast: false
-      matrix: ${{ fromJSON(needs.prepare.outputs.matrix) }}
+      matrix: ${{ fromJSON(needs.prepare.outputs.build_matrix) }}
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -114,17 +133,16 @@ jobs:
           image="ghcr.io/${owner}/ubuntu-${MATRIX_UBUNTU}"
           snapshot="$(date -u -d '48 hours ago' '+%Y%m%dT000000Z')"
           created="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
-          short_sha="${GITHUB_SHA::12}"
+          source_tag="${image}:${MATRIX_FLAVOR}-build-${MATRIX_ARCHITECTURE}"
           {
-            echo "image=${image}"
             echo "snapshot=${snapshot}"
             echo "created=${created}"
-            echo "short_sha=${short_sha}"
-            echo "tags=${image}:${MATRIX_FLAVOR}"
+            echo "source_tag=${source_tag}"
           } >>"$GITHUB_OUTPUT"
         env:
           MATRIX_UBUNTU: ${{ matrix.ubuntu }}
           MATRIX_FLAVOR: ${{ matrix.flavor }}
+          MATRIX_ARCHITECTURE: ${{ matrix.architecture }}
 
       - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
 
@@ -142,7 +160,7 @@ jobs:
           context: .
           file: Dockerfile.slim
           target: ${{ matrix.target }}
-          platforms: linux/amd64
+          platforms: linux/${{ matrix.architecture }}
           push: ${{ github.event_name != 'pull_request' }}
           build-args: |
             UBUNTU_VERSION=${{ matrix.ubuntu }}
@@ -150,53 +168,42 @@ jobs:
             APT_SNAPSHOT=${{ steps.metadata.outputs.snapshot }}
             GITHUB_REPOSITORY=${{ github.repository }}
           tags: |
-            ${{ steps.metadata.outputs.tags }}
+            ${{ steps.metadata.outputs.source_tag }}
           labels: |
             org.opencontainers.image.created=${{ steps.metadata.outputs.created }}
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            io.lithos.image.build-run=${{ github.run_id }}-${{ github.run_attempt }}
           cache-from: |
-            type=gha,scope=image-${{ matrix.ubuntu }}-slim
-            type=gha,scope=image-${{ matrix.ubuntu }}-${{ matrix.flavor }}
-          cache-to: type=gha,mode=max,scope=image-${{ matrix.ubuntu }}-${{ matrix.flavor }}
+            type=gha,scope=image-${{ matrix.ubuntu }}-slim-${{ matrix.architecture }}
+            type=gha,scope=image-${{ matrix.ubuntu }}-${{ matrix.flavor }}-${{ matrix.architecture }}
+          cache-to: type=gha,mode=max,scope=image-${{ matrix.ubuntu }}-${{ matrix.flavor }}-${{ matrix.architecture }}
           provenance: mode=max
           sbom: true
-
-      - name: Publish immutable source tag
-        if: github.event_name != 'pull_request'
-        run: >-
-          node scripts/registry/copy-image.mjs copy
-          --source "${STEPS_METADATA_OUTPUTS_IMAGE}:${MATRIX_FLAVOR}"
-          --target "${STEPS_METADATA_OUTPUTS_IMAGE}:${MATRIX_FLAVOR}-${STEPS_METADATA_OUTPUTS_SHORT_SHA}"
-          --if-absent
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          STEPS_METADATA_OUTPUTS_IMAGE: ${{ steps.metadata.outputs.image }}
-          STEPS_METADATA_OUTPUTS_SHORT_SHA: ${{ steps.metadata.outputs.short_sha }}
-          MATRIX_FLAVOR: ${{ matrix.flavor }}
 
       - name: Verify published image
         if: github.event_name != 'pull_request'
         run: |
-          canonical_ref="${STEPS_METADATA_OUTPUTS_IMAGE}:${MATRIX_FLAVOR}"
+          source_ref="${STEPS_METADATA_OUTPUTS_SOURCE_TAG}"
           docker run --rm \
-            --platform linux/amd64 \
+            --platform "linux/${MATRIX_ARCHITECTURE}" \
             --volume "$PWD/tests:/tests:ro" \
-            "$canonical_ref" \
-            /tests/verify-image.sh "${MATRIX_UBUNTU}" "${MATRIX_FLAVOR}"
+            "$source_ref" \
+            /tests/verify-image.sh "${MATRIX_UBUNTU}" "${MATRIX_FLAVOR}" "${MATRIX_ARCHITECTURE}"
         env:
-          STEPS_METADATA_OUTPUTS_IMAGE: ${{ steps.metadata.outputs.image }}
+          STEPS_METADATA_OUTPUTS_SOURCE_TAG: ${{ steps.metadata.outputs.source_tag }}
           MATRIX_UBUNTU: ${{ matrix.ubuntu }}
           MATRIX_FLAVOR: ${{ matrix.flavor }}
+          MATRIX_ARCHITECTURE: ${{ matrix.architecture }}
 
       - name: Runtime smoke test
         if: github.event_name != 'pull_request' && matrix.flavor != 'slim'
         shell: bash
         run: |
-          smoke_ref="${STEPS_METADATA_OUTPUTS_IMAGE}:${MATRIX_FLAVOR}"
+          smoke_ref="${STEPS_METADATA_OUTPUTS_SOURCE_TAG}"
           docker_args=(
             --rm
-            --platform linux/amd64
+            --platform "linux/${MATRIX_ARCHITECTURE}"
             --volume "$PWD/tests:/tests:ro"
           )
           case "$MATRIX_FLAVOR" in
@@ -206,7 +213,77 @@ jobs:
           esac
           docker run "${docker_args[@]}" \
             "$smoke_ref" \
-            /tests/smoke-runtime.sh "$MATRIX_FLAVOR"
+            /tests/smoke-runtime.sh "$MATRIX_FLAVOR" "$MATRIX_ARCHITECTURE"
         env:
-          STEPS_METADATA_OUTPUTS_IMAGE: ${{ steps.metadata.outputs.image }}
+          STEPS_METADATA_OUTPUTS_SOURCE_TAG: ${{ steps.metadata.outputs.source_tag }}
+          MATRIX_FLAVOR: ${{ matrix.flavor }}
+          MATRIX_ARCHITECTURE: ${{ matrix.architecture }}
+
+  publish:
+    name: Publish Ubuntu ${{ matrix.ubuntu }} ${{ matrix.flavor }}
+    if: ${{ !cancelled() && needs.prepare.result == 'success' && github.event_name != 'pull_request' }}
+    needs: [prepare, build]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write # Needed to publish images to GHCR
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.prepare.outputs.publish_matrix) }}
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+
+      - name: Log in to GHCR
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Assemble and verify image index
+        shell: bash
+        run: |
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+          image="ghcr.io/${owner}/ubuntu-${MATRIX_UBUNTU}"
+          canonical_ref="${image}:${MATRIX_FLAVOR}"
+          sources=()
+          while read -r architecture; do
+            source_ref="${image}:${MATRIX_FLAVOR}-build-${architecture}"
+            source_config="$(docker buildx imagetools inspect "$source_ref" \
+              --format "{{json (index .Image \"linux/${architecture}\")}}")"
+            jq --exit-status \
+              --arg build_run "$BUILD_RUN" \
+              '.config.Labels["io.lithos.image.build-run"] == $build_run' \
+              <<<"$source_config" >/dev/null
+            sources+=("$source_ref")
+          done < <(jq -r '.[]' <<<"$MATRIX_ARCHITECTURES")
+
+          docker buildx imagetools create --tag "$canonical_ref" "${sources[@]}"
+          index="$(docker buildx imagetools inspect "$canonical_ref" --raw)"
+          while read -r architecture; do
+            jq --exit-status \
+              --arg architecture "$architecture" \
+              'any(.manifests[]?; .platform.os == "linux" and .platform.architecture == $architecture)' \
+              <<<"$index" >/dev/null
+          done < <(jq -r '.[]' <<<"$MATRIX_ARCHITECTURES")
+        env:
+          MATRIX_UBUNTU: ${{ matrix.ubuntu }}
+          MATRIX_FLAVOR: ${{ matrix.flavor }}
+          MATRIX_ARCHITECTURES: ${{ toJSON(matrix.architectures) }}
+          BUILD_RUN: ${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Publish immutable source tag
+        run: >-
+          node scripts/registry/copy-image.mjs copy
+          --source "${IMAGE}:${MATRIX_FLAVOR}"
+          --target "${IMAGE}:${MATRIX_FLAVOR}-${GITHUB_SHA::12}"
+          --if-absent
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          IMAGE: ghcr.io/${{ github.repository_owner }}/ubuntu-${{ matrix.ubuntu }}
           MATRIX_FLAVOR: ${{ matrix.flavor }}

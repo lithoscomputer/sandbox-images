@@ -220,13 +220,18 @@ function readRunnerEnvironment(contents) {
 
 async function publish() {
   const metadataDir = option("--metadata-dir");
+  const architecture = requiredEnv("ARCHITECTURE");
+  if (!new Set(["amd64", "arm64"]).has(architecture)) {
+    throw new Error(`Unsupported architecture: ${architecture}`);
+  }
   const files = (await readdir(metadataDir)).filter((name) => name.endsWith(".json")).sort();
   const metadata = await Promise.all(
     files.map(async (name) => JSON.parse(await readFile(`${metadataDir}/${name}`, "utf8"))),
   );
   if (metadata.length === 0) throw new Error("No layer metadata was found");
 
-  const environment = readRunnerEnvironment(await readFile("/etc/environment", "utf8"));
+  const environmentFile = process.env.RUNNER_ENVIRONMENT_FILE || "/etc/environment";
+  const environment = readRunnerEnvironment(await readFile(environmentFile, "utf8"));
   environment.entries.push("ACT_TOOLSDIRECTORY=/opt/acttoolcache");
   const created = new Date().toISOString();
   const version = environment.values.ImageVersion || process.env.GITHUB_SHA;
@@ -238,11 +243,12 @@ async function publish() {
     "org.opencontainers.image.source": source,
     "org.opencontainers.image.version": version,
     "io.lithos.image.flavor": "full",
+    "io.lithos.image.architecture": architecture,
     "io.lithos.image.ubuntu-version": requiredEnv("UBUNTU_VERSION"),
   };
   const config = Buffer.from(JSON.stringify({
     created,
-    architecture: "amd64",
+    architecture,
     os: "linux",
     config: {
       Env: environment.entries,
@@ -270,7 +276,7 @@ async function publish() {
     annotations: labels,
   }));
 
-  const tags = ["latest", version];
+  const tags = [`latest-${architecture}`, `${version}-${architecture}`];
   for (const tag of tags) {
     await request(`${registry}/v2/${image}/manifests/${tag}`, {
       method: "PUT",

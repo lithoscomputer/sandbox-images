@@ -3,8 +3,17 @@ set -Eeuo pipefail
 
 expected_version="${1:?expected Ubuntu version is required}"
 expected_flavor="${2:-slim}"
+expected_architecture="${3:-$(dpkg --print-architecture)}"
 
-test "$(dpkg --print-architecture)" = "amd64"
+case "$expected_architecture" in
+  amd64) toolcache_arch=x64 ;;
+  arm64) toolcache_arch=arm64 ;;
+  *)
+    echo "Unknown image architecture: $expected_architecture" >&2
+    exit 2
+    ;;
+esac
+test "$(dpkg --print-architecture)" = "$expected_architecture"
 actual_version="$(sed -n -E 's/^VERSION_ID="?([^"[:space:]]+)"?$/\1/p' /etc/os-release)"
 test "$actual_version" = "$expected_version"
 
@@ -31,9 +40,9 @@ pkg-config --exists yaml-0.1 openssl sqlite3
 
 test -d /opt/hostedtoolcache
 test -w /opt/hostedtoolcache
-test -x /opt/hostedtoolcache/node/20.20.2/x64/bin/node
-test -x /opt/hostedtoolcache/node/22.23.2/x64/bin/node
-test -x /opt/hostedtoolcache/node/24.19.0/x64/bin/node
+test -x "/opt/hostedtoolcache/node/20.20.2/${toolcache_arch}/bin/node"
+test -x "/opt/hostedtoolcache/node/22.23.2/${toolcache_arch}/bin/node"
+test -x "/opt/hostedtoolcache/node/24.19.0/${toolcache_arch}/bin/node"
 
 verify_dind() {
   for command in containerd docker dockerd fuse-overlayfs start-docker; do

@@ -1,10 +1,24 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-if [[ "${TARGETARCH:-amd64}" != "amd64" ]]; then
-  echo "Only linux/amd64 is supported" >&2
-  exit 1
-fi
+case "${TARGETARCH:-amd64}" in
+  amd64)
+    gh_arch=amd64
+    gh_sha256="${GH_SHA256_AMD64:?GH_SHA256_AMD64 is required}"
+    node_arch=x64
+    toolcache_arch=x64
+    ;;
+  arm64)
+    gh_arch=arm64
+    gh_sha256="${GH_SHA256_ARM64:?GH_SHA256_ARM64 is required}"
+    node_arch=arm64
+    toolcache_arch=arm64
+    ;;
+  *)
+    echo "Only linux/amd64 and linux/arm64 are supported" >&2
+    exit 1
+    ;;
+esac
 
 if [[ -n "${APT_SNAPSHOT:-}" ]]; then
   snapshot_uri="https://snapshot.ubuntu.com/ubuntu/${APT_SNAPSHOT}/"
@@ -69,19 +83,19 @@ DEBIAN_FRONTEND=noninteractive apt-get upgrade -y
 DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "${packages[@]}"
 
 gh_version="${GH_VERSION:?GH_VERSION is required}"
-gh_archive="/tmp/gh_${gh_version}_linux_amd64.tar.gz"
+gh_archive="/tmp/gh_${gh_version}_linux_${gh_arch}.tar.gz"
 curl --fail --location --silent --show-error --retry 3 \
-  "https://github.com/cli/cli/releases/download/v${gh_version}/gh_${gh_version}_linux_amd64.tar.gz" \
+  "https://github.com/cli/cli/releases/download/v${gh_version}/gh_${gh_version}_linux_${gh_arch}.tar.gz" \
   --output "$gh_archive"
-echo "${GH_SHA256:?GH_SHA256 is required}  $gh_archive" | sha256sum --check --strict
-python3 - "$gh_archive" "/usr/local/bin/gh" "$gh_version" <<'PY'
+echo "${gh_sha256}  $gh_archive" | sha256sum --check --strict
+python3 - "$gh_archive" "/usr/local/bin/gh" "$gh_version" "$gh_arch" <<'PY'
 import os
 import shutil
 import sys
 import tarfile
 
-archive, destination, version = sys.argv[1:]
-member_name = f"gh_{version}_linux_amd64/bin/gh"
+archive, destination, version, architecture = sys.argv[1:]
+member_name = f"gh_{version}_linux_{architecture}/bin/gh"
 with tarfile.open(archive, "r:gz") as source:
     member = source.getmember(member_name)
     if not member.isfile():
@@ -110,8 +124,8 @@ chmod 0777 \
 
 install_node() {
   local version="$1"
-  local archive="node-v${version}-linux-x64.tar.xz"
-  local destination="/opt/hostedtoolcache/node/${version}/x64"
+  local archive="node-v${version}-linux-${node_arch}.tar.xz"
+  local destination="/opt/hostedtoolcache/node/${version}/${toolcache_arch}"
 
   mkdir -p "$destination"
   curl --fail --location --retry 3 \
@@ -139,7 +153,7 @@ with tarfile.open(archive, "r:xz") as source:
         member.name = str(pathlib.PurePosixPath(*parts))
         source.extract(member, destination)
 PY
-  touch "/opt/hostedtoolcache/node/${version}/x64.complete"
+  touch "/opt/hostedtoolcache/node/${version}/${toolcache_arch}.complete"
   rm -f "/tmp/${archive}" "/tmp/SHASUMS256-${version}.txt"
 }
 
@@ -150,7 +164,7 @@ install_node "${NODE24_VERSION:?NODE24_VERSION is required}"
 rm -rf /opt/acttoolcache/node
 ln -s /opt/hostedtoolcache/node /opt/acttoolcache/node
 for command in node npm npx corepack; do
-  ln -sf "/opt/hostedtoolcache/node/${NODE24_VERSION}/x64/bin/${command}" "/usr/local/bin/${command}"
+  ln -sf "/opt/hostedtoolcache/node/${NODE24_VERSION}/${toolcache_arch}/bin/${command}" "/usr/local/bin/${command}"
 done
 
 ubuntu_major="${UBUNTU_VERSION%%.*}"

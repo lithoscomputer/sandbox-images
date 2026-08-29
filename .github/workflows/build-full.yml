@@ -29,8 +29,8 @@ concurrency:
 
 jobs:
   capture:
-    name: Ubuntu ${{ matrix.ubuntu }} full
-    runs-on: ubuntu-${{ matrix.ubuntu }}
+    name: Ubuntu ${{ matrix.ubuntu }} full (${{ matrix.architecture }})
+    runs-on: ${{ format('ubuntu-{0}{1}', matrix.ubuntu, matrix.architecture == 'arm64' && '-arm' || '') }}
     timeout-minutes: 360
     permissions:
       contents: read
@@ -40,9 +40,11 @@ jobs:
       max-parallel: 3
       matrix:
         ubuntu: ${{ fromJSON(github.event_name == 'workflow_dispatch' && inputs.ubuntu != 'all' && format('["{0}"]', inputs.ubuntu) || '["22.04","24.04","26.04"]') }}
+        architecture: [amd64, arm64]
 
     env:
       UBUNTU_VERSION: ${{ matrix.ubuntu }}
+      ARCHITECTURE: ${{ matrix.architecture }}
       LAYER_METADATA_DIR: ${{ github.workspace }}/.layer-metadata
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -60,6 +62,7 @@ jobs:
           owner="${GITHUB_REPOSITORY_OWNER,,}"
           version="$(sed -n -E 's/^ImageVersion="?([^"[:space:]]+)"?$/\1/p' /etc/environment)"
           test -n "$version"
+          test "$(dpkg --print-architecture)" = "$ARCHITECTURE"
           echo "IMAGE=${owner}/ubuntu-${MATRIX_UBUNTU}-full" >>"$GITHUB_ENV"
           echo "IMAGE_VERSION=${version}" >>"$GITHUB_ENV"
         env:
@@ -67,7 +70,7 @@ jobs:
 
       - name: Check for the runner version in GHCR
         id: existing
-        run: node scripts/full/registry.mjs manifest-exists --tag "$IMAGE_VERSION"
+        run: node scripts/full/registry.mjs manifest-exists --tag "${IMAGE_VERSION}-${ARCHITECTURE}"
 
       - name: Capture root filesystem
         if: steps.existing.outputs.exists != 'true' || github.event_name == 'push' || inputs.force
@@ -91,4 +94,45 @@ jobs:
 
       - name: Report unchanged image
         if: steps.existing.outputs.exists == 'true' && github.event_name != 'push' && !inputs.force
-        run: echo "ghcr.io/${IMAGE}:${IMAGE_VERSION} already exists; capture skipped"
+        run: echo "ghcr.io/${IMAGE}:${IMAGE_VERSION}-${ARCHITECTURE} already exists; capture skipped"
+
+  publish:
+    name: Publish Ubuntu ${{ matrix.ubuntu }} full index
+    needs: capture
+    runs-on: ubuntu-24.04
+    permissions:
+      packages: write # Needed to publish images to GHCR
+    strategy:
+      fail-fast: false
+      matrix:
+        ubuntu: ${{ fromJSON(github.event_name == 'workflow_dispatch' && inputs.ubuntu != 'all' && format('["{0}"]', inputs.ubuntu) || '["22.04","24.04","26.04"]') }}
+
+    steps:
+      - uses: docker/setup-buildx-action@37fe631027851001ddb9b187196cc803df7f5f0e # v4.3.0
+
+      - name: Log in to GHCR
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Assemble and verify image index
+        shell: bash
+        run: |
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+          image="ghcr.io/${owner}/ubuntu-${MATRIX_UBUNTU}-full"
+          docker buildx imagetools create \
+            --tag "${image}:latest" \
+            "${image}:latest-amd64" \
+            "${image}:latest-arm64"
+
+          index="$(docker buildx imagetools inspect "${image}:latest" --raw)"
+          for architecture in amd64 arm64; do
+            jq --exit-status \
+              --arg architecture "$architecture" \
+              'any(.manifests[]?; .platform.os == "linux" and .platform.architecture == $architecture)' \
+              <<<"$index" >/dev/null
+          done
+        env:
+          MATRIX_UBUNTU: ${{ matrix.ubuntu }}

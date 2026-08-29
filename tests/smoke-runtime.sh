@@ -2,6 +2,7 @@
 set -Eeuo pipefail
 
 flavor="${1:?image flavor is required}"
+expected_architecture="${2:-$(dpkg --print-architecture)}"
 
 smoke_dind() {
   start-docker
@@ -12,7 +13,7 @@ smoke_dind() {
   printf 'runtime smoke test\n' >"${context}/marker"
   printf 'FROM scratch\nCOPY marker /marker\n' >"${context}/Dockerfile"
   docker build --tag gha-runtime-smoke "$context"
-  test "$(docker image inspect --format '{{.Architecture}}' gha-runtime-smoke)" = amd64
+  test "$(docker image inspect --format '{{.Architecture}}' gha-runtime-smoke)" = "$expected_architecture"
   docker image rm gha-runtime-smoke >/dev/null
   rm -rf "$context"
 }

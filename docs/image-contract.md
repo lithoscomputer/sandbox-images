@@ -7,10 +7,19 @@ This document describes the behavior shared by the published images. See the ima
 All images use:
 
 - Operating system: Linux.
-- Architecture: `amd64` (`x86-64`).
 - Container user: root.
 
-The repository does not publish ARM, Windows, or macOS images.
+Supported architectures depend on the flavor:
+
+| Flavor | Architectures |
+| --- | --- |
+| `slim` | `amd64` (`x86-64`), `arm64` |
+| `dind` | `amd64` (`x86-64`), `arm64` |
+| `full` | `amd64` (`x86-64`), `arm64` |
+| `chrome` | `amd64` (`x86-64`) |
+| `dind-chrome` | `amd64` (`x86-64`) |
+
+Multi-architecture tags select the matching platform automatically. The Chrome flavors remain AMD64-only because Chrome for Testing does not publish a Linux ARM64 binary. The repository does not publish Windows or macOS images.
 
 ## Process defaults
 

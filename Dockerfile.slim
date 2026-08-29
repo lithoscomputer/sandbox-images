@@ -9,7 +9,8 @@ ARG TARGETARCH
 ARG GITHUB_REPOSITORY
 ARG IMAGE_OS
 ARG GH_VERSION=2.89.0
-ARG GH_SHA256=d0422caade520530e76c1c558da47daebaa8e1203d6b7ff10ad7d6faba3490d8
+ARG GH_SHA256_AMD64=d0422caade520530e76c1c558da47daebaa8e1203d6b7ff10ad7d6faba3490d8
+ARG GH_SHA256_ARM64=9e64a623dfc242990aa5d9b3f507111149c4282f66b68eaad1dc79eeb13b9ce5
 ARG NODE20_VERSION=20.20.2
 ARG NODE22_VERSION=22.23.2
 ARG NODE24_VERSION=24.19.0
@@ -28,7 +29,7 @@ RUN /usr/local/lib/gha-image/install.sh \
     && rm -rf /usr/local/lib/gha-image
 
 LABEL org.opencontainers.image.title="GitHub Actions Ubuntu slim image" \
-      org.opencontainers.image.description="Small x86-64 Ubuntu environment compatible with common GitHub Actions" \
+      org.opencontainers.image.description="Small Ubuntu environment compatible with common GitHub Actions" \
       org.opencontainers.image.source="https://github.com/${GITHUB_REPOSITORY}" \
       io.lithos.image.flavor="slim" \
       io.lithos.image.ubuntu-version="${UBUNTU_VERSION}"

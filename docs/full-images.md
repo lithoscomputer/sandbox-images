@@ -2,23 +2,25 @@
 
 Full images are filesystem captures of actual GitHub-hosted Ubuntu runners. Use them when a workflow assumes the broad software set preinstalled by GitHub.
 
-Full images are available for Ubuntu 22.04, 24.04, and 26.04.
+Full images are available for Ubuntu 22.04, 24.04, and 26.04 on AMD64 and ARM64.
 
 ## Source environments
 
 Each capture job runs on its matching GitHub runner label:
 
-- `ubuntu-22.04`.
-- `ubuntu-24.04`.
-- `ubuntu-26.04`.
+- AMD64: `ubuntu-22.04`, `ubuntu-24.04`, and `ubuntu-26.04`.
+- ARM64: `ubuntu-22.04-arm`, `ubuntu-24.04-arm`, and `ubuntu-26.04-arm`.
 
 The upstream installed-software inventories are:
 
 - [Ubuntu 22.04 installed software](https://github.com/actions/runner-images/blob/main/images/ubuntu/Ubuntu2204-Readme.md)
+- [Ubuntu 22.04 ARM64 installed software](https://github.com/actions/runner-images/blob/main/images/ubuntu/Ubuntu2204-Arm64-Readme.md)
 - [Ubuntu 24.04 installed software](https://github.com/actions/runner-images/blob/main/images/ubuntu/Ubuntu2404-Readme.md)
+- [Ubuntu 24.04 ARM64 installed software](https://github.com/actions/runner-images/blob/main/images/ubuntu/Ubuntu2404-Arm64-Readme.md)
 - [Ubuntu 26.04 installed software](https://github.com/actions/runner-images/blob/main/images/ubuntu/Ubuntu2604-Readme.md)
+- [Ubuntu 26.04 ARM64 installed software](https://github.com/actions/runner-images/blob/main/images/ubuntu/Ubuntu2604-Arm64-Readme.md)
 
-Those inventories describe the runner release that GitHub currently publishes. Use the full image's `ImageVersion` tag to identify the captured release.
+Those inventories describe the runner releases that GitHub currently publishes. The installed tools can differ by architecture.
 
 Ubuntu 26.04 is a public-preview GitHub Actions image. Its installed software and runner availability can change more often than the other releases.
 
@@ -57,10 +59,12 @@ A workflow can still need service startup commands or a runtime-specific setup s
 
 ## Updates and tags
 
-The daily workflow checks the `ImageVersion` on each GitHub runner. It skips filesystem capture when that version tag already exists in GHCR. A new capture publishes:
+The daily workflow checks the `ImageVersion` on each GitHub runner. It skips filesystem capture when the matching architecture-specific version tag already exists in GHCR. A new capture publishes:
 
-- `latest`.
-- The GitHub runner `ImageVersion`.
+- `latest-<architecture>`.
+- `<ImageVersion>-<architecture>`.
+
+After both platform jobs finish, the workflow assembles `latest` as a multi-architecture image index. AMD64 and ARM64 runner releases can have different `ImageVersion` values, so version tags remain platform-specific.
 
 Full images publish directly to a package named `ubuntu-<version>-full`. They do not publish package aliases.
 

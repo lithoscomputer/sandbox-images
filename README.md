@@ -1,6 +1,6 @@
 # GitHub Actions Ubuntu container images
 
-This repository publishes Linux x86-64 container images based on GitHub Actions Ubuntu environments. Images are stored under `ghcr.io/lithoscomputer/`.
+This repository publishes Linux container images based on GitHub Actions Ubuntu environments. Images are stored under `ghcr.io/lithoscomputer/`.
 
 ## Choose an image
 
@@ -30,7 +30,7 @@ Select a different image only when the workflow has a specific need:
 | 26.04 | Slim | `ghcr.io/lithoscomputer/ubuntu-26.04:slim` | About 1 GiB |
 | 26.04 | Full | `ghcr.io/lithoscomputer/ubuntu-26.04-full:latest` | Tens of GiB |
 
-All images use `linux/amd64`. This repository does not publish ARM, Windows, or macOS images. Dind and Chrome variants are available only for Ubuntu 24.04.
+The `slim`, `dind`, and `full` tags support both `linux/amd64` and `linux/arm64`. Docker selects the matching image from each multi-architecture tag. The `chrome` and `dind-chrome` tags support only `linux/amd64` because Chrome for Testing does not publish a Linux ARM64 binary. Dind and Chrome variants are available only for Ubuntu 24.04. This repository does not publish Windows or macOS images.
 
 Ubuntu 26.04 is currently a public-preview GitHub Actions runner image. Its contents and availability can change more often than the other versions.
 
@@ -60,6 +60,8 @@ ghcr.io/lithoscomputer/ubuntu-24.04:slim-d832b6d5a46e
 ghcr.io/lithoscomputer/ubuntu-24.04:dind-d832b6d5a46e
 ```
 
+The immutable tag has the same platform set as its flavor tag.
+
 A scheduled build can refresh packages without changing the repository commit. The short-commit tag is set once and does not move. Pin the image digest when a workflow must select the exact result of a later scheduled refresh:
 
 ```text
@@ -70,8 +72,11 @@ Full packages publish:
 
 | Tag | Behavior |
 | --- | --- |
-| `latest` | Moves after a new GitHub runner filesystem is captured |
-| GitHub runner `ImageVersion` | Identifies the captured runner release and does not move |
+| `latest` | Multi-architecture tag that moves after both runner filesystems are ready |
+| `latest-amd64`, `latest-arm64` | Moving platform-specific capture tags used to assemble `latest` |
+| `<ImageVersion>-amd64`, `<ImageVersion>-arm64` | Immutable platform-specific GitHub runner releases |
+
+AMD64 and ARM64 GitHub runners can have different `ImageVersion` values. Pin the multi-architecture `latest` tag by digest when one immutable reference must work on both platforms.
 
 There is no moving `ubuntu-latest` package or tag. Select an Ubuntu version explicitly.
 

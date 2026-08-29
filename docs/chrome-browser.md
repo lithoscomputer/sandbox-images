@@ -2,6 +2,8 @@
 
 The `chrome` and `dind-chrome` flavors add a maintained browser-testing environment to the Ubuntu 24.04 slim image.
 
+These flavors support `linux/amd64` only. Chrome for Testing does not publish a Linux ARM64 binary. Use the plain `slim` or `dind` flavor when an ARM64 workload does not need this browser stack.
+
 ## Installed software
 
 The images add:

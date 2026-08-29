@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-if [[ "${TARGETARCH:-amd64}" != "amd64" ]]; then
-  echo "Only linux/amd64 is supported" >&2
-  exit 1
-fi
+case "${TARGETARCH:-amd64}" in
+  amd64 | arm64) ;;
+  *)
+    echo "Only linux/amd64 and linux/arm64 are supported" >&2
+    exit 1
+    ;;
+esac
 
 if [[ "${UBUNTU_VERSION:?UBUNTU_VERSION is required}" != "24.04" ]]; then
   echo "The dind flavor supports only Ubuntu 24.04" >&2
