@@ -255,10 +255,13 @@ jobs:
           while read -r architecture; do
             source_ref="${image}:${MATRIX_FLAVOR}-build-${architecture}"
             source_config="$(docker buildx imagetools inspect "$source_ref" \
-              --format "{{json (index .Image \"linux/${architecture}\")}}")"
+              --format '{{json .Image}}')"
             jq --exit-status \
               --arg build_run "$BUILD_RUN" \
-              '.config.Labels["io.lithos.image.build-run"] == $build_run' \
+              --arg architecture "$architecture" \
+              '.os == "linux"
+                and .architecture == $architecture
+                and .config.Labels["io.lithos.image.build-run"] == $build_run' \
               <<<"$source_config" >/dev/null
             sources+=("$source_ref")
           done < <(jq -r '.[]' <<<"$MATRIX_ARCHITECTURES")
