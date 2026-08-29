@@ -39,8 +39,10 @@ packages=(
   gnupg
   iproute2
   jq
+  libmysqlclient-dev
   libsqlite3-dev
   libssl-dev
+  libxml2-dev
   libyaml-dev
   locales
   openssh-client

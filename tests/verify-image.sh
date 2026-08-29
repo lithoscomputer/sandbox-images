@@ -27,7 +27,7 @@ findmnt --version >/dev/null
 # No `grep -q` here: under pipefail its early exit turns ldconfig's SIGPIPE
 # into status 141.
 ldconfig -p | grep -F libyaml-0.so.2 >/dev/null
-pkg-config --exists yaml-0.1 openssl sqlite3
+pkg-config --exists yaml-0.1 openssl sqlite3 libxml-2.0 mysqlclient
 
 test -d /opt/hostedtoolcache
 test -w /opt/hostedtoolcache

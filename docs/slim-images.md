@@ -17,9 +17,11 @@ The build installs these packages with `--no-install-recommends`:
 | Process and system support | `procps`, `util-linux` |
 | Shell support | `jq`, `locales`, `ripgrep`, `shellcheck`, `sudo` |
 | Python | `python3`, `python3-jsonschema`, `python3-pip`, `python3-venv`, `pipx` |
-| Toolchain shared libraries and native builds | `libsqlite3-dev`, `libssl-dev`, `libyaml-dev`, `pkg-config` |
+| Toolchain shared libraries and native builds | `libmysqlclient-dev`, `libsqlite3-dev`, `libssl-dev`, `libxml2-dev`, `libyaml-dev`, `pkg-config` |
 
 Ubuntu installs required dependency packages too. Exact dependency versions differ by Ubuntu release and package snapshot. The package array in [`scripts/slim/install.sh`](../scripts/slim/install.sh) is the source of truth. The GitHub CLI is a pinned upstream release rather than an Ubuntu package.
+
+The toolchain library row matches GitHub's `ubuntu-slim` image, with two additions from the full runner image: `libxml2-dev` (brings ICU, about 88 MB installed) and `libmysqlclient-dev`. Common Ruby native gems (`libxml-ruby`, `mysql2`) compile against them, and real workflows install those gems during `ruby/setup-ruby`'s bundler step.
 
 ## Node.js and action compatibility
 
