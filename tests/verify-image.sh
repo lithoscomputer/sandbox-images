@@ -20,6 +20,13 @@ test -z "${LC_ALL+x}"
 python3 -c 'import jsonschema'
 findmnt --version >/dev/null
 
+# Shared libraries that prebuilt tool-cache toolchains link against — the lib*
+# set GitHub's ubuntu-slim ships. Ruby builds from ruby/setup-ruby load libyaml
+# through psych on every `gem` invocation; the headers and pkg-config serve
+# native-extension builds inside actions (setup-ruby's bundler-cache).
+ldconfig -p | grep -qF libyaml-0.so.2
+pkg-config --exists yaml-0.1 openssl sqlite3
+
 test -d /opt/hostedtoolcache
 test -w /opt/hostedtoolcache
 test -x /opt/hostedtoolcache/node/20.20.2/x64/bin/node
