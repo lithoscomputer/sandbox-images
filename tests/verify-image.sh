@@ -17,7 +17,7 @@ test "$(dpkg --print-architecture)" = "$expected_architecture"
 actual_version="$(sed -n -E 's/^VERSION_ID="?([^"[:space:]]+)"?$/\1/p' /etc/os-release)"
 test "$actual_version" = "$expected_version"
 
-for command in bash curl gh git git-lfs ip jq node npm ps python python3 rg ss sudo tar unzip wget zip zstd; do
+for command in bash curl gh git git-lfs ip jq lsb_release node npm ps python python3 rg ss sudo tar unzip wget zip zstd; do
   command -v "$command" >/dev/null || {
     echo "Missing command: $command" >&2
     exit 1

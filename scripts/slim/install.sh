@@ -57,6 +57,7 @@ packages=(
   libssl-dev
   libyaml-dev
   locales
+  lsb-release
   openssh-client
   pipx
   pkg-config
