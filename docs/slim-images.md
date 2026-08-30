@@ -14,7 +14,7 @@ The build installs these packages with `--no-install-recommends`:
 | Files and archives | `file`, `rsync`, `tar`, `unzip`, `xz-utils`, `zip`, `zstd` |
 | Git and GitHub | `gh`, `git`, `git-lfs` |
 | HTTP, networking, and SSH | `apt-transport-https`, `ca-certificates`, `curl`, `gnupg`, `iproute2`, `openssh-client`, `wget` |
-| Process and system support | `procps`, `util-linux` |
+| Process and system support | `lsb-release`, `procps`, `util-linux` |
 | Shell support | `jq`, `locales`, `ripgrep`, `shellcheck`, `sudo` |
 | Python | `python3`, `python3-jsonschema`, `python3-pip`, `python3-venv`, `pipx` |
 | Toolchain shared libraries and native builds | `libsqlite3-dev`, `libssl-dev`, `libyaml-dev`, `pkg-config` |
