@@ -73,6 +73,32 @@ wait_for_docker() {
   return 1
 }
 
+remove_stale_pidfile() {
+  local recorded_pid executable
+  if ! recorded_pid=$(cat /var/run/docker.pid 2> /dev/null); then
+    return
+  fi
+
+  # A sandbox restart can leave this file behind and reuse its PID for an
+  # unrelated process. Inspect the executable; never signal a recorded PID.
+  case "$recorded_pid" in
+    '' | *[!0-9]*) ;;
+    *)
+      executable=$(readlink "/proc/$recorded_pid/exe" 2> /dev/null || true)
+      case "$executable" in
+        */dockerd | */dockerd\ \(deleted\)) return ;;
+      esac
+      ;;
+  esac
+
+  # A provider-started daemon can still be initializing, before it answers
+  # docker info or publishes its PID. Leave its startup state alone.
+  if pgrep -x dockerd > /dev/null 2>&1; then
+    return
+  fi
+  rm -f /var/run/docker.pid
+}
+
 report_ready() {
   ready_source=$1
   ready_wait_seconds=$2
@@ -175,6 +201,18 @@ if wait_for_docker "$provider_wait_seconds"; then
   report_ready provider-started "$docker_wait_attempts"
 fi
 
+# Serialize this script's cleanup and service startup, then recheck because
+# another caller may have started Docker while this one waited for the lock.
+exec 9> /var/run/start-docker.lock
+if ! flock --exclusive --wait "$start_wait_seconds" 9; then
+  collect_failure_diagnostics startup-lock-timeout service-not-called not-called
+  exit 1
+fi
+if docker_ready; then
+  report_ready already-running 0
+fi
+remove_stale_pidfile
+
 # A sandbox can inherit a soft nofile limit above the hard limit that Docker's
 # SysV init script sets. Lower it first so that update is valid.
 if ! ulimit -S -n 1024; then
@@ -182,7 +220,8 @@ if ! ulimit -S -n 1024; then
   exit 1
 fi
 
-if service docker start; then
+# The daemon must not inherit the startup lock and hold it for its lifetime.
+if service docker start 9>&-; then
   service_start_status=succeeded
 else
   service_start_status=failed
