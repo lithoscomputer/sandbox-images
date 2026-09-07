@@ -16,7 +16,7 @@ The build installs these packages with `--no-install-recommends`:
 | HTTP, networking, and SSH | `apt-transport-https`, `ca-certificates`, `curl`, `gnupg`, `iproute2`, `openssh-client`, `wget` |
 | Process and system support | `lsb-release`, `procps`, `util-linux` |
 | Shell support | `jq`, `locales`, `ripgrep`, `shellcheck`, `sudo` |
-| Python | `python3`, `python3-jsonschema`, `python3-pip`, `python3-venv`, `pipx` |
+| Python | `python3`, `python3-jsonschema`, `python3-pip`, `python3-venv`, `python3-yaml` (PyYAML), `pipx` |
 | Toolchain shared libraries and native builds | `libsqlite3-dev`, `libssl-dev`, `libyaml-dev`, `pkg-config` |
 
 Ubuntu installs required dependency packages too. Exact dependency versions differ by Ubuntu release and package snapshot. The package array in [`scripts/slim/install.sh`](../scripts/slim/install.sh) is the source of truth. The GitHub CLI is a pinned upstream release rather than an Ubuntu package.
