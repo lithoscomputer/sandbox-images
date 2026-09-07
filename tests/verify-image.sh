@@ -27,6 +27,7 @@ done
 test "${LANG:-}" = "C.UTF-8"
 test -z "${LC_ALL+x}"
 python3 -c 'import jsonschema'
+python3 -c 'import yaml; assert yaml.safe_load("enabled: true") == {"enabled": True}'
 findmnt --version >/dev/null
 
 # Shared libraries that prebuilt tool-cache toolchains link against — the lib*
