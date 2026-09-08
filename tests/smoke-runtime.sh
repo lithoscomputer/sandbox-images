@@ -66,7 +66,7 @@ smoke_chrome() {
 
   agent-browser open about:blank
   test "$(agent-browser get url)" = about:blank
-  agent-browser eval 'document.body.innerHTML = `<style>@keyframes smoke { from { transform: translateX(0) } to { transform: translateX(300px) } }</style><div style="width:100px;height:100px;background:#f00;animation:smoke 1s linear infinite alternate"></div>`'
+  agent-browser eval 'document.body.innerHTML = "<style>@keyframes smoke { from { transform: translateX(0) } to { transform: translateX(300px) } }</style><div style=\"width:100px;height:100px;background:#f00;animation:smoke 1s linear infinite alternate\"></div>"'
   agent-browser record start "$chrome_recording" --fps 60
   agent-browser wait 1000
   agent-browser record stop
