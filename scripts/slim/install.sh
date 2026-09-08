@@ -20,6 +20,17 @@ case "${TARGETARCH:-amd64}" in
     ;;
 esac
 
+# snapshot.ubuntu.com answers some requests with a transient 5xx. Without
+# retries, apt falls back from a compressed index to the uncompressed one,
+# which the snapshot service does not serve, and the build fails. The file
+# stays in the image, so every later apt-get call in the flavor layers and
+# in a running sandbox retries too.
+cat >/etc/apt/apt.conf.d/80-retries <<'EOF'
+Acquire::Retries "5";
+Acquire::Retries::Delay "true";
+Acquire::Retries::Delay::Maximum "30";
+EOF
+
 if [[ -n "${APT_SNAPSHOT:-}" ]]; then
   snapshot_uri="https://snapshot.ubuntu.com/ubuntu/${APT_SNAPSHOT}/"
 
@@ -44,6 +55,7 @@ fi
 
 packages=(
   apt-transport-https
+  bash
   build-essential
   ca-certificates
   curl

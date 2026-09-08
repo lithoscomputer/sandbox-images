@@ -47,7 +47,7 @@ Keep the maintained workflow matrix, validation matrix, and README synchronized.
 
 Never install a package or release that is less than 24 hours old.
 
-Maintained builds use an Ubuntu package repository snapshot from 48 hours before the workflow starts. Keep this delay at least 24 hours. New downloaded tools must use reviewed, pinned versions that are more than 24 hours old. Add and verify a checksum when the upstream distribution supports one.
+Maintained builds use an Ubuntu package repository snapshot from 48 hours before the workflow starts. Keep this delay at least 24 hours. The snapshot service sometimes returns a transient server error, so the slim install script configures apt to retry downloads; keep that configuration ahead of the first `apt-get` call. New downloaded tools must use reviewed, pinned versions that are more than 24 hours old. Add and verify a checksum when the upstream distribution supports one.
 
 GitHub Actions must use full commit SHA pins. Run pedantic Zizmor after changing a workflow.
 

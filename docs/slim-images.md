@@ -15,7 +15,7 @@ The build installs these packages with `--no-install-recommends`:
 | Git and GitHub | `gh`, `git`, `git-lfs` |
 | HTTP, networking, and SSH | `apt-transport-https`, `ca-certificates`, `curl`, `gnupg`, `iproute2`, `openssh-client`, `wget` |
 | Process and system support | `lsb-release`, `procps`, `util-linux` |
-| Shell support | `jq`, `locales`, `ripgrep`, `shellcheck`, `sudo` |
+| Shell support | `bash`, `jq`, `locales`, `ripgrep`, `shellcheck`, `sudo` |
 | Python | `python3`, `python3-jsonschema`, `python3-pip`, `python3-venv`, `python3-yaml` (PyYAML), `pipx` |
 | Toolchain shared libraries and native builds | `libsqlite3-dev`, `libssl-dev`, `libyaml-dev`, `pkg-config` |
 
@@ -40,6 +40,8 @@ The image also provides a `python` command that points to the system `python3` c
 The maintained-image workflow uses an Ubuntu package repository snapshot from 48 hours before the build. This prevents installation of Ubuntu packages released less than 24 hours ago.
 
 Other downloaded tools use reviewed, pinned releases that are also more than 24 hours old.
+
+The snapshot service sometimes answers a request with a transient server error. The build configures apt to retry a failed download five times with a growing delay, through `/etc/apt/apt.conf.d/80-retries`. The file stays in the image, so `apt-get` in a running sandbox retries too.
 
 ## What plain slim does not provide
 
