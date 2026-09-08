@@ -3,6 +3,7 @@ set -Eeuo pipefail
 
 flavor="${1:?image flavor is required}"
 expected_architecture="${2:-$(dpkg --print-architecture)}"
+chrome_recording=""
 
 smoke_dind() {
   # Reproduce a stopped sandbox whose saved dockerd PID has been reused by
@@ -54,27 +55,29 @@ smoke_dind() {
 smoke_chrome() {
   export AGENT_BROWSER_NAMESPACE="gha-runtime-smoke-${GITHUB_RUN_ID:-local}"
   export AGENT_BROWSER_SESSION="gha-runtime-smoke-${GITHUB_RUN_ATTEMPT:-1}"
-  local frame_rate recording
-  recording=$(mktemp --suffix=.webm)
+  local frame_rate
+  chrome_recording=$(mktemp --suffix=.webm)
   cleanup_chrome() {
     agent-browser record stop >/dev/null 2>&1 || true
     agent-browser close >/dev/null 2>&1 || true
-    rm -f "$recording"
+    rm -f "$chrome_recording"
   }
   trap cleanup_chrome EXIT
 
   agent-browser open about:blank
   test "$(agent-browser get url)" = about:blank
-  agent-browser record start "$recording" --fps 60
+  agent-browser eval 'document.body.innerHTML = `<style>@keyframes smoke { from { transform: translateX(0) } to { transform: translateX(300px) } }</style><div style="width:100px;height:100px;background:#f00;animation:smoke 1s linear infinite alternate"></div>`'
+  agent-browser record start "$chrome_recording" --fps 60
   agent-browser wait 1000
   agent-browser record stop
-  test -s "$recording"
+  test -s "$chrome_recording"
   frame_rate=$(ffprobe -v error -select_streams v:0 \
     -show_entries stream=avg_frame_rate -of default=noprint_wrappers=1:nokey=1 \
-    "$recording")
+    "$chrome_recording")
   test "$frame_rate" = 60/1
   agent-browser close
-  rm -f "$recording"
+  rm -f "$chrome_recording"
+  chrome_recording=""
   trap - EXIT
 }
 
