@@ -41,6 +41,8 @@ The maintained-image workflow uses an Ubuntu package repository snapshot from 48
 
 Other downloaded tools use reviewed, pinned releases that are also more than 24 hours old.
 
+The snapshot service sometimes answers a request with a transient server error. The build configures apt to retry a failed download five times with a growing delay, through `/etc/apt/apt.conf.d/80-retries`. The file stays in the image, so `apt-get` in a running sandbox retries too.
+
 ## What plain slim does not provide
 
 The plain slim images do not intentionally install these software groups:
