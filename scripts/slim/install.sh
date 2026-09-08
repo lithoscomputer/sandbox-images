@@ -44,6 +44,7 @@ fi
 
 packages=(
   apt-transport-https
+  bash
   build-essential
   ca-certificates
   curl
