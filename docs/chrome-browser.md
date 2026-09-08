@@ -9,7 +9,7 @@ These flavors support `linux/amd64` only. Chrome for Testing does not publish a 
 The images add:
 
 - Chrome for Testing.
-- `agent-browser`.
+- `agent-browser`, including WebM recording from 1 to 60 frames per second.
 - Playwright MCP.
 - FFmpeg and FFprobe.
 - Browser libraries.

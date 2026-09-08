@@ -54,11 +54,27 @@ smoke_dind() {
 smoke_chrome() {
   export AGENT_BROWSER_NAMESPACE="gha-runtime-smoke-${GITHUB_RUN_ID:-local}"
   export AGENT_BROWSER_SESSION="gha-runtime-smoke-${GITHUB_RUN_ATTEMPT:-1}"
-  trap 'agent-browser close >/dev/null 2>&1 || true' EXIT
+  local frame_rate recording
+  recording=$(mktemp --suffix=.webm)
+  cleanup_chrome() {
+    agent-browser record stop >/dev/null 2>&1 || true
+    agent-browser close >/dev/null 2>&1 || true
+    rm -f "$recording"
+  }
+  trap cleanup_chrome EXIT
 
   agent-browser open about:blank
   test "$(agent-browser get url)" = about:blank
+  agent-browser record start "$recording" --fps 60
+  agent-browser wait 1000
+  agent-browser record stop
+  test -s "$recording"
+  frame_rate=$(ffprobe -v error -select_streams v:0 \
+    -show_entries stream=avg_frame_rate -of default=noprint_wrappers=1:nokey=1 \
+    "$recording")
+  test "$frame_rate" = 60/1
   agent-browser close
+  rm -f "$recording"
   trap - EXIT
 }
 
