@@ -182,8 +182,8 @@ jobs:
           provenance: ${{ github.event_name == 'pull_request' && 'false' || 'mode=max' }}
           sbom: ${{ github.event_name != 'pull_request' }}
 
-      - name: Verify published image
-        if: github.event_name != 'pull_request'
+      - name: Verify image
+        if: github.event_name != 'pull_request' || matrix.flavor != 'slim'
         run: |
           source_ref="${STEPS_METADATA_OUTPUTS_SOURCE_TAG}"
           docker run --rm \

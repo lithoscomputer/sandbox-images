@@ -53,8 +53,10 @@ smoke_dind() {
 }
 
 smoke_chrome() {
-  local attempt frame_rate
+  export AGENT_BROWSER_ARGS="${AGENT_BROWSER_ARGS:+${AGENT_BROWSER_ARGS},}--disable-gpu"
+  local attempt frame_rate recording_url
   local recorded=false
+  recording_url='data:text/html,<title>recording-smoke</title><style>body{animation:colors .1s infinite alternate}@keyframes colors{from{background:red}to{background:blue}}</style><body>recording</body>'
   chrome_recording=$(mktemp --suffix=.webm)
   cleanup_chrome() {
     agent-browser record stop >/dev/null 2>&1 || true
@@ -69,9 +71,9 @@ smoke_chrome() {
     if agent-browser open about:blank \
       && test "$(agent-browser get url)" = about:blank \
       && agent-browser record start "$chrome_recording" --fps 60 \
-      && agent-browser wait 500 \
-      && agent-browser eval '(async () => { await new Promise(resolve => { let tick = 0; const timer = setInterval(() => { document.body.textContent = String(++tick); document.body.style.backgroundColor = tick % 2 ? "red" : "blue"; if (tick === 120) { clearInterval(timer); resolve(); } }, 16); }); return true })()' \
-      && agent-browser wait 500 \
+      && agent-browser open "$recording_url" \
+      && test "$(agent-browser get title)" = recording-smoke \
+      && agent-browser wait 2000 \
       && agent-browser record stop \
       && test -s "$chrome_recording"; then
       recorded=true
