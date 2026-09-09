@@ -162,6 +162,7 @@ jobs:
           target: ${{ matrix.target }}
           platforms: linux/${{ matrix.architecture }}
           push: ${{ github.event_name != 'pull_request' }}
+          load: ${{ github.event_name == 'pull_request' && matrix.flavor != 'slim' }}
           build-args: |
             UBUNTU_VERSION=${{ matrix.ubuntu }}
             IMAGE_OS=${{ matrix.image_os }}
@@ -197,7 +198,7 @@ jobs:
           MATRIX_ARCHITECTURE: ${{ matrix.architecture }}
 
       - name: Runtime smoke test
-        if: github.event_name != 'pull_request' && matrix.flavor != 'slim'
+        if: matrix.flavor != 'slim'
         shell: bash
         run: |
           smoke_ref="${STEPS_METADATA_OUTPUTS_SOURCE_TAG}"
