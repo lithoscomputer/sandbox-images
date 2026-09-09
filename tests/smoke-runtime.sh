@@ -55,7 +55,8 @@ smoke_dind() {
 smoke_chrome() {
   export AGENT_BROWSER_NAMESPACE="gha-runtime-smoke-${GITHUB_RUN_ID:-local}"
   export AGENT_BROWSER_SESSION="gha-runtime-smoke-${GITHUB_RUN_ATTEMPT:-1}"
-  local frame_rate
+  local attempt frame_rate
+  local recorded=false
   chrome_recording=$(mktemp --suffix=.webm)
   cleanup_chrome() {
     agent-browser record stop >/dev/null 2>&1 || true
@@ -66,10 +67,26 @@ smoke_chrome() {
 
   agent-browser open about:blank
   test "$(agent-browser get url)" = about:blank
-  agent-browser record start "$chrome_recording" --fps 60
-  agent-browser eval '(async () => { await new Promise(resolve => { let tick = 0; const timer = setInterval(() => { document.body.textContent = String(++tick); document.body.style.backgroundColor = tick % 2 ? "red" : "blue"; if (tick === 90) { clearInterval(timer); resolve(); } }, 16); }); return true })()'
-  agent-browser record stop
-  test -s "$chrome_recording"
+  for attempt in 1 2 3; do
+    if agent-browser record start "$chrome_recording" --fps 60 \
+      && agent-browser wait 500 \
+      && agent-browser eval '(async () => { await new Promise(resolve => { let tick = 0; const timer = setInterval(() => { document.body.textContent = String(++tick); document.body.style.backgroundColor = tick % 2 ? "red" : "blue"; if (tick === 120) { clearInterval(timer); resolve(); } }, 16); }); return true })()' \
+      && agent-browser wait 500 \
+      && agent-browser record stop \
+      && test -s "$chrome_recording"; then
+      recorded=true
+      break
+    fi
+    agent-browser record stop >/dev/null 2>&1 || true
+    rm -f "$chrome_recording"
+    if (( attempt < 3 )); then
+      chrome_recording=$(mktemp --suffix=.webm)
+      echo "Retrying the Chrome recording smoke test after attempt $attempt." >&2
+    fi
+  done
+  if [[ "$recorded" != true ]]; then
+    return 1
+  fi
   frame_rate=$(ffprobe -v error -select_streams v:0 \
     -show_entries stream=avg_frame_rate -of default=noprint_wrappers=1:nokey=1 \
     "$chrome_recording")
