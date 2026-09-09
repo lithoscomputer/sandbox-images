@@ -222,7 +222,12 @@ jobs:
 
   publish:
     name: Publish Ubuntu ${{ matrix.ubuntu }} ${{ matrix.flavor }}
-    if: ${{ !cancelled() && needs.prepare.result == 'success' && github.event_name != 'pull_request' }}
+    # All or nothing: every platform build in the run must have passed its
+    # checks before any flavor tag moves. The build matrix runs with
+    # fail-fast off, so its result is `success` only when every leg passed.
+    # A single failed check therefore publishes nothing, and the flavor tags
+    # keep describing one source commit that was built and checked in full.
+    if: ${{ !cancelled() && needs.build.result == 'success' && github.event_name != 'pull_request' }}
     needs: [prepare, build]
     runs-on: ubuntu-24.04
     permissions:

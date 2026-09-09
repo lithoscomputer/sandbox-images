@@ -53,7 +53,7 @@ ghcr.io/lithoscomputer/ubuntu-24.04:chrome
 ghcr.io/lithoscomputer/ubuntu-24.04:dind-chrome
 ```
 
-The flavor tags move after successful maintained builds. Use a flavor and 12-character source commit when the source revision must not move:
+The flavor tags move together, after a maintained build in which every image passed its checks; a failed check in any image publishes nothing. Use a flavor and 12-character source commit when the source revision must not move:
 
 ```text
 ghcr.io/lithoscomputer/ubuntu-24.04:slim-d832b6d5a46e
