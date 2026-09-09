@@ -134,10 +134,12 @@ jobs:
           snapshot="$(date -u -d '48 hours ago' '+%Y%m%dT000000Z')"
           created="$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
           source_tag="${image}:${MATRIX_FLAVOR}-build-${MATRIX_ARCHITECTURE}"
+          verified_tag="${image}:${MATRIX_FLAVOR}-verified-${MATRIX_ARCHITECTURE}"
           {
             echo "snapshot=${snapshot}"
             echo "created=${created}"
             echo "source_tag=${source_tag}"
+            echo "verified_tag=${verified_tag}"
           } >>"$GITHUB_OUTPUT"
         env:
           MATRIX_UBUNTU: ${{ matrix.ubuntu }}
@@ -219,6 +221,21 @@ jobs:
           MATRIX_FLAVOR: ${{ matrix.flavor }}
           MATRIX_ARCHITECTURE: ${{ matrix.architecture }}
 
+      # The publish job assembles a flavor only from platforms that passed
+      # their checks. A verified tag is the proof: it is created here, after
+      # the verify and smoke steps, so a platform whose checks failed leaves
+      # no verified tag and the publish job for its flavor fails instead of
+      # moving the public tag onto an unchecked image.
+      - name: Mark the platform build verified
+        if: github.event_name != 'pull_request'
+        run: |
+          docker buildx imagetools create \
+            --tag "${VERIFIED_TAG}" \
+            "${SOURCE_TAG}"
+        env:
+          SOURCE_TAG: ${{ steps.metadata.outputs.source_tag }}
+          VERIFIED_TAG: ${{ steps.metadata.outputs.verified_tag }}
+
   publish:
     name: Publish Ubuntu ${{ matrix.ubuntu }} ${{ matrix.flavor }}
     if: ${{ !cancelled() && needs.prepare.result == 'success' && github.event_name != 'pull_request' }}
@@ -253,7 +270,11 @@ jobs:
           canonical_ref="${image}:${MATRIX_FLAVOR}"
           sources=()
           while read -r architecture; do
-            source_ref="${image}:${MATRIX_FLAVOR}-build-${architecture}"
+            # The verified tag exists only when that platform's build passed
+            # its verify and smoke steps in this run; the run label below
+            # rejects one left by an earlier run. A missing tag fails here,
+            # before the public flavor tag moves.
+            source_ref="${image}:${MATRIX_FLAVOR}-verified-${architecture}"
             source_config="$(docker buildx imagetools inspect "$source_ref" \
               --format '{{json .Image}}')"
             jq --exit-status \
