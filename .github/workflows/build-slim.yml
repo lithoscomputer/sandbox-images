@@ -179,8 +179,8 @@ jobs:
             type=gha,scope=image-${{ matrix.ubuntu }}-slim-${{ matrix.architecture }}
             type=gha,scope=image-${{ matrix.ubuntu }}-${{ matrix.flavor }}-${{ matrix.architecture }}
           cache-to: type=gha,mode=max,scope=image-${{ matrix.ubuntu }}-${{ matrix.flavor }}-${{ matrix.architecture }}
-          provenance: mode=max
-          sbom: true
+          provenance: ${{ github.event_name == 'pull_request' && 'false' || 'mode=max' }}
+          sbom: ${{ github.event_name != 'pull_request' }}
 
       - name: Verify published image
         if: github.event_name != 'pull_request'
