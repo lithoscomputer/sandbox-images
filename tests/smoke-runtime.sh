@@ -53,6 +53,7 @@ smoke_dind() {
 }
 
 smoke_chrome() {
+  export AGENT_BROWSER_ARGS="${AGENT_BROWSER_ARGS:+${AGENT_BROWSER_ARGS},}--disable-gpu"
   local attempt frame_rate recording_url
   local recorded=false
   recording_url='data:text/html,<title>recording-smoke</title><style>body{animation:colors .1s infinite alternate}@keyframes colors{from{background:red}to{background:blue}}</style><body>recording</body>'
