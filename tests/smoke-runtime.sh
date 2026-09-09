@@ -53,8 +53,6 @@ smoke_dind() {
 }
 
 smoke_chrome() {
-  export AGENT_BROWSER_NAMESPACE="gha-runtime-smoke-${GITHUB_RUN_ID:-local}"
-  export AGENT_BROWSER_SESSION="gha-runtime-smoke-${GITHUB_RUN_ATTEMPT:-1}"
   local attempt frame_rate
   local recorded=false
   chrome_recording=$(mktemp --suffix=.webm)
@@ -65,10 +63,12 @@ smoke_chrome() {
   }
   trap cleanup_chrome EXIT
 
-  agent-browser open about:blank
-  test "$(agent-browser get url)" = about:blank
   for attempt in 1 2 3; do
-    if agent-browser record start "$chrome_recording" --fps 60 \
+    export AGENT_BROWSER_NAMESPACE="gha-runtime-smoke-${GITHUB_RUN_ID:-local}-${attempt}"
+    export AGENT_BROWSER_SESSION="gha-runtime-smoke-${GITHUB_RUN_ATTEMPT:-1}-${attempt}"
+    if agent-browser open about:blank \
+      && test "$(agent-browser get url)" = about:blank \
+      && agent-browser record start "$chrome_recording" --fps 60 \
       && agent-browser wait 500 \
       && agent-browser eval '(async () => { await new Promise(resolve => { let tick = 0; const timer = setInterval(() => { document.body.textContent = String(++tick); document.body.style.backgroundColor = tick % 2 ? "red" : "blue"; if (tick === 120) { clearInterval(timer); resolve(); } }, 16); }); return true })()' \
       && agent-browser wait 500 \
@@ -78,6 +78,7 @@ smoke_chrome() {
       break
     fi
     agent-browser record stop >/dev/null 2>&1 || true
+    agent-browser close >/dev/null 2>&1 || true
     rm -f "$chrome_recording"
     if (( attempt < 3 )); then
       chrome_recording=$(mktemp --suffix=.webm)
