@@ -162,7 +162,7 @@ jobs:
           target: ${{ matrix.target }}
           platforms: linux/${{ matrix.architecture }}
           push: ${{ github.event_name != 'pull_request' }}
-          load: ${{ github.event_name == 'pull_request' && matrix.flavor != 'slim' }}
+          load: ${{ github.event_name == 'pull_request' }}
           build-args: |
             UBUNTU_VERSION=${{ matrix.ubuntu }}
             IMAGE_OS=${{ matrix.image_os }}
@@ -183,7 +183,6 @@ jobs:
           sbom: ${{ github.event_name != 'pull_request' }}
 
       - name: Verify image
-        if: github.event_name != 'pull_request' || matrix.flavor != 'slim'
         run: |
           source_ref="${STEPS_METADATA_OUTPUTS_SOURCE_TAG}"
           docker run --rm \
