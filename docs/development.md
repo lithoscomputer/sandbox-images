@@ -179,3 +179,16 @@ Use `scripts/registry/copy-image.mjs` when an existing manifest must receive a n
 ## GHCR access
 
 Build workflows use `GITHUB_TOKEN` with package write access. The six packages are public and linked to this repository. Public images must remain anonymously readable after every publication change.
+
+## eMudhra response
+
+The October 2026 emergency exception permits the reviewed Node.js patch releases
+before their normal 24-hour age. Apt snapshots retain their normal delay; the
+image explicitly distrusts both affected roots before HTTPS downloads and after
+package upgrades. Node 20 is no longer bundled because no fixed supported
+release is available. Migrate actions or workloads that require Node 20.
+
+Every image must reject all twelve checked-in advisory chains. Full capture
+also checks its runner before publication. A failed gate means the runner must
+be patched; do not bypass the check. Docker daemon and other embedded client
+updates remain separate release work.

@@ -23,7 +23,7 @@ jobs:
           persist-credentials: false
 
       - name: Check shell scripts
-        run: shellcheck scripts/slim/install.sh scripts/dind/install.sh scripts/dind/start-docker scripts/chrome/install.sh scripts/full/capture-layer.sh tests/smoke-runtime.sh tests/verify-image.sh
+        run: shellcheck scripts/slim/install.sh scripts/dind/install.sh scripts/dind/start-docker scripts/chrome/install.sh scripts/full/capture-layer.sh tests/smoke-runtime.sh tests/verify-image.sh tests/verify-tls.sh
 
       - name: Check JavaScript
         run: node --check scripts/full/registry.mjs && node --check scripts/registry/copy-image.mjs

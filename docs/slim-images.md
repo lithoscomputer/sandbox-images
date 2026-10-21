@@ -23,11 +23,13 @@ Ubuntu installs required dependency packages too. Exact dependency versions diff
 
 ## Node.js and action compatibility
 
+Node.js 20 is no longer bundled because it has no supported fixed release.
+Migrate actions and workloads to a supported patched Node.js version.
+
 Slim-based images contain these pinned Node.js versions for AMD64 and ARM64:
 
-- Node.js 20.20.2.
-- Node.js 22.23.2.
-- Node.js 24.19.0.
+- Node.js 22.23.4.
+- Node.js 24.22.1.
 
 The default `node`, `npm`, `npx`, and `corepack` commands use Node.js 24. The complete installations are under `/opt/hostedtoolcache/node`. AMD64 installations use the `x64` tool-cache directory. ARM64 installations use the `arm64` directory. `/opt/acttoolcache/node` points to the same content.
 
@@ -39,7 +41,7 @@ The image also provides a `python` command that points to the system `python3` c
 
 The maintained-image workflow uses an Ubuntu package repository snapshot from 48 hours before the build. This prevents installation of Ubuntu packages released less than 24 hours ago.
 
-Other downloaded tools use reviewed, pinned releases that are also more than 24 hours old.
+Other downloaded tools normally use reviewed releases that are more than 24 hours old. The October 2026 eMudhra response permits the patched Node releases under the emergency exception.
 
 The snapshot service sometimes answers a request with a transient server error. The build configures apt to retry a failed download five times with a growing delay, through `/etc/apt/apt.conf.d/80-retries`. The file stays in the image, so `apt-get` in a running sandbox retries too.
 

@@ -72,6 +72,9 @@ jobs:
         id: existing
         run: node scripts/full/registry.mjs manifest-exists --tag "${IMAGE_VERSION}-${ARCHITECTURE}"
 
+      - name: Verify runner certificate trust before capture
+        run: tests/verify-tls.sh
+
       - name: Capture root filesystem
         if: steps.existing.outputs.exists != 'true' || github.event_name == 'push' || inputs.force
         run: scripts/full/capture-layer.sh 00-root

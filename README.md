@@ -36,7 +36,7 @@ Ubuntu 26.04 is currently a public-preview GitHub Actions runner image. Its cont
 
 ### What slim means
 
-Every slim-based image includes Git, Git LFS, GitHub CLI, SSH, curl, wget, jq, ripgrep, archive tools, `build-essential`, Python with pip and venv support, and Node.js 20, 22, and 24 tool-cache entries for JavaScript actions.
+Every slim-based image includes Git, Git LFS, GitHub CLI, SSH, curl, wget, jq, ripgrep, archive tools, `build-essential`, Python with pip and venv support, and Node.js 22 and 24 tool-cache entries for JavaScript actions.
 
 Plain slim does not include Docker, Chrome, Java, .NET, Go, Ruby, Rust, Android tools, cloud CLIs, Kubernetes tools, Terraform, databases, Homebrew, or the broad GitHub-hosted runner tool cache. Select a focused Dind or Chrome image when it provides the missing capability. Select full when the workflow depends on several other preinstalled toolchains or close GitHub runner filesystem parity.
 

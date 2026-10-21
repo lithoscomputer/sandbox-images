@@ -41,9 +41,8 @@ pkg-config --exists yaml-0.1 openssl sqlite3
 
 test -d /opt/hostedtoolcache
 test -w /opt/hostedtoolcache
-test -x "/opt/hostedtoolcache/node/20.20.2/${toolcache_arch}/bin/node"
-test -x "/opt/hostedtoolcache/node/22.23.2/${toolcache_arch}/bin/node"
-test -x "/opt/hostedtoolcache/node/24.19.0/${toolcache_arch}/bin/node"
+test -x "/opt/hostedtoolcache/node/22.23.4/${toolcache_arch}/bin/node"
+test -x "/opt/hostedtoolcache/node/24.22.1/${toolcache_arch}/bin/node"
 
 verify_dind() {
   for command in containerd docker dockerd fuse-overlayfs start-docker; do
@@ -90,3 +89,5 @@ case "$expected_flavor" in
     exit 2
     ;;
 esac
+
+"$(dirname "$0")/verify-tls.sh"
