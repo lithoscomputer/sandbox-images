@@ -51,6 +51,10 @@ if [[ -n "${APT_SNAPSHOT:-}" ]]; then
   DEBIAN_FRONTEND=noninteractive apt-get \
     -o Acquire::https::Verify-Peer=false \
     install -y --no-install-recommends ca-certificates
+  # Distrust compromised roots before the first verified HTTPS download.
+  sed -i -e 's|^mozilla/emSign_ECC_Root_CA_-_G3.crt|!&|' \
+    -e 's|^mozilla/Comodo_AAA_Services_root.crt|!&|' /etc/ca-certificates.conf
+  update-ca-certificates
 fi
 
 packages=(
@@ -71,6 +75,7 @@ packages=(
   locales
   lsb-release
   openssh-client
+  openssl
   pipx
   pkg-config
   procps
@@ -95,6 +100,13 @@ packages=(
 apt-get update
 DEBIAN_FRONTEND=noninteractive apt-get upgrade -y
 DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "${packages[@]}"
+
+# Keep the distrust rule after apt upgrades, including when a snapshot still
+# carries the old CA package. Native clients and pip use this system bundle.
+sed -i -e 's|^mozilla/emSign_ECC_Root_CA_-_G3.crt|!&|' \
+  -e 's|^mozilla/Comodo_AAA_Services_root.crt|!&|' /etc/ca-certificates.conf
+update-ca-certificates
+printf '[global]\ncert = /etc/ssl/certs/ca-certificates.crt\n' >/etc/pip.conf
 
 gh_version="${GH_VERSION:?GH_VERSION is required}"
 gh_archive="/tmp/gh_${gh_version}_linux_${gh_arch}.tar.gz"
@@ -171,7 +183,6 @@ PY
   rm -f "/tmp/${archive}" "/tmp/SHASUMS256-${version}.txt"
 }
 
-install_node "${NODE20_VERSION:?NODE20_VERSION is required}"
 install_node "${NODE22_VERSION:?NODE22_VERSION is required}"
 install_node "${NODE24_VERSION:?NODE24_VERSION is required}"
 
