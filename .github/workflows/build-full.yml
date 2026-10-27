@@ -64,13 +64,16 @@ jobs:
           test -n "$version"
           test "$(dpkg --print-architecture)" = "$ARCHITECTURE"
           echo "IMAGE=${owner}/ubuntu-${MATRIX_UBUNTU}-full" >>"$GITHUB_ENV"
-          echo "IMAGE_VERSION=${version}-bun1.4.4" >>"$GITHUB_ENV"
+          echo "IMAGE_VERSION=${version}-emudhra-bun1.4.4" >>"$GITHUB_ENV"
         env:
           MATRIX_UBUNTU: ${{ matrix.ubuntu }}
 
       - name: Check for the runner version in GHCR
         id: existing
         run: node scripts/full/registry.mjs manifest-exists --tag "${IMAGE_VERSION}-${ARCHITECTURE}"
+
+      - name: Repair native and Node certificate trust before capture
+        run: scripts/full/repair-trust.sh
 
       - name: Upgrade preinstalled Bun before capture
         run: scripts/full/upgrade-bun.sh

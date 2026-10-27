@@ -27,7 +27,8 @@ case "$(uname -m)" in
 esac
 scratch=$(mktemp -d)
 trap 'rm -rf "$scratch"' EXIT
-curl --fail --silent --show-error --location \
+curl --fail --silent --show-error --location --retry 2 \
+  --connect-timeout 15 --max-time 180 \
   "https://github.com/oven-sh/bun/releases/download/bun-v1.4.4/bun-${platform}.zip" \
   --output "$scratch/bun.zip"
 printf '%s  %s\n' "$checksum" "$scratch/bun.zip" | sha256sum --check --status
