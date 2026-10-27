@@ -41,3 +41,20 @@ if [[ -d /opt/hostedtoolcache/node ]]; then
 fi
 
 node "$(dirname "$0")/verify-node-tls.cjs"
+
+# Match the Bun locations included in full filesystem captures. Test every
+# executable, including inactive tool-cache versions, before any publication.
+bun_roots=()
+for root in /usr/local /opt /usr/share /home/linuxbrew /home/runner/.bun; do
+  [[ ! -d "$root" ]] || bun_roots+=("$root")
+done
+if [[ ${#bun_roots[@]} -gt 0 ]]; then
+  while IFS= read -r -d '' executable; do
+    version=$("$executable" --version)
+    if [[ "$(printf '%s\n' '1.4.4' "$version" | sort -V | head -1)" != '1.4.4' ]]; then
+      echo "Unpatched Bun: $executable ($version)" >&2
+      exit 1
+    fi
+    "$executable" "$(dirname "$0")/verify-bun-tls.mjs"
+  done < <(find "${bun_roots[@]}" -type f -name bun -perm /111 -print0)
+fi

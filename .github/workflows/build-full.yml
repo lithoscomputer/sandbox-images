@@ -72,6 +72,9 @@ jobs:
         id: existing
         run: node scripts/full/registry.mjs manifest-exists --tag "${IMAGE_VERSION}-${ARCHITECTURE}"
 
+      - name: Upgrade preinstalled Bun before capture
+        run: scripts/full/upgrade-bun.sh
+
       - name: Verify runner certificate trust before capture
         run: tests/verify-tls.sh
 
