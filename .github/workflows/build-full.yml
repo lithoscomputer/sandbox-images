@@ -16,6 +16,10 @@ on:
         type: choice
         options: [all, "22.04", "24.04", "26.04"]
         default: all
+      immutable_only:
+        description: Publish immutable platform tags without changing shared latest aliases
+        type: boolean
+        default: false
       force:
         description: Capture even if this runner ImageVersion already exists
         type: boolean
@@ -24,8 +28,8 @@ on:
 permissions: {}
 
 concurrency:
-  group: full-runner-capture
-  cancel-in-progress: true
+  group: ${{ github.event_name == 'workflow_dispatch' && inputs.immutable_only && format('full-runner-capture-immutable-{0}', github.ref) || 'full-runner-capture' }}
+  cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' || !inputs.immutable_only }}
 
 jobs:
   capture:
@@ -47,6 +51,7 @@ jobs:
       ARCHITECTURE: ${{ matrix.architecture }}
       LAYER_METADATA_DIR: ${{ github.workspace }}/.layer-metadata
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      IMMUTABLE_ONLY: ${{ github.event_name == 'workflow_dispatch' && inputs.immutable_only && 'true' || 'false' }}
 
     steps:
       # This must remain the only third-party code executed before capture.
@@ -106,6 +111,7 @@ jobs:
         run: echo "ghcr.io/${IMAGE}:${IMAGE_VERSION}-${ARCHITECTURE} already exists; capture skipped"
 
   publish:
+    if: ${{ github.event_name != 'workflow_dispatch' || !inputs.immutable_only }}
     name: Publish Ubuntu ${{ matrix.ubuntu }} full index
     needs: capture
     runs-on: ubuntu-24.04

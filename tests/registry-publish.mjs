@@ -81,34 +81,38 @@ try {
   server.listen(0, "127.0.0.1");
   await once(server, "listening");
   const address = server.address();
-  const child = spawn(
-    process.execPath,
-    ["scripts/full/registry.mjs", "publish", "--metadata-dir", metadataDirectory],
-    {
-      env: {
-        ...process.env,
-        ARCHITECTURE: "arm64",
-        GITHUB_ACTOR: "test-actor",
-        GITHUB_REPOSITORY: "test/repository",
-        GITHUB_SERVER_URL: "https://github.example",
-        GITHUB_SHA: "test-sha",
-        GITHUB_TOKEN: "test-token",
-        IMAGE: "test/image",
-        IMAGE_VERSION: "test-version-bun1.4.4",
-        REGISTRY: `http://127.0.0.1:${address.port}`,
-        RUNNER_ENVIRONMENT_FILE: environmentFile,
-        UBUNTU_VERSION: "24.04",
+  async function publish(immutableOnly) {
+    const child = spawn(
+      process.execPath,
+      ["scripts/full/registry.mjs", "publish", "--metadata-dir", metadataDirectory],
+      {
+        env: {
+          ...process.env,
+          ARCHITECTURE: "arm64",
+          GITHUB_ACTOR: "test-actor",
+          GITHUB_REPOSITORY: "test/repository",
+          GITHUB_SERVER_URL: "https://github.example",
+          GITHUB_SHA: "test-sha",
+          GITHUB_TOKEN: "test-token",
+          IMAGE: "test/image",
+          IMAGE_VERSION: "test-version-bun1.4.4",
+          IMMUTABLE_ONLY: String(immutableOnly),
+          REGISTRY: `http://127.0.0.1:${address.port}`,
+          RUNNER_ENVIRONMENT_FILE: environmentFile,
+          UBUNTU_VERSION: "24.04",
+        },
+        stdio: ["ignore", "pipe", "pipe"],
       },
-      stdio: ["ignore", "pipe", "pipe"],
-    },
-  );
-  let stderr = "";
-  child.stderr.setEncoding("utf8");
-  child.stderr.on("data", (chunk) => {
-    stderr += chunk;
-  });
-  const [exitCode] = await once(child, "exit");
-  assert.equal(exitCode, 0, stderr);
+    );
+    let stderr = "";
+    child.stderr.setEncoding("utf8");
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk;
+    });
+    const [exitCode] = await once(child, "exit");
+    assert.equal(exitCode, 0, stderr);
+  }
+  await publish(false);
 
   assert.deepEqual([...manifests.keys()].sort(), ["latest-arm64", "test-version-bun1.4.4-arm64"]);
   assert.equal(uploads.length, 1);
@@ -125,6 +129,12 @@ try {
     assert.equal(manifest.config.digest, `sha256:${createHash("sha256").update(uploads[0]).digest("hex")}`);
     assert.equal(manifest.layers[0].digest, layerDigest);
   }
+
+  manifests.clear();
+  uploads.length = 0;
+  await publish(true);
+  assert.deepEqual([...manifests.keys()], ["test-version-bun1.4.4-arm64"]);
+  assert.equal(JSON.parse(uploads[0]).config.Labels["org.opencontainers.image.version"], "test-version-bun1.4.4");
 } finally {
   server.close();
   await rm(temporaryDirectory, { recursive: true, force: true });

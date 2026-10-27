@@ -278,7 +278,10 @@ async function publish() {
     annotations: labels,
   }));
 
-  const tags = [`latest-${architecture}`, `${version}-${architecture}`];
+  const immutableTag = `${version}-${architecture}`;
+  const tags = process.env.IMMUTABLE_ONLY === "true"
+    ? [immutableTag]
+    : [`latest-${architecture}`, immutableTag];
   for (const tag of tags) {
     await request(`${registry}/v2/${image}/manifests/${tag}`, {
       method: "PUT",
