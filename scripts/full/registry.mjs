@@ -234,7 +234,8 @@ async function publish() {
   const environment = readRunnerEnvironment(await readFile(environmentFile, "utf8"));
   environment.entries.push("ACT_TOOLSDIRECTORY=/opt/acttoolcache");
   const created = new Date().toISOString();
-  const version = environment.values.ImageVersion || process.env.GITHUB_SHA;
+  const runnerVersion = environment.values.ImageVersion;
+  const version = process.env.IMAGE_VERSION || runnerVersion || process.env.GITHUB_SHA;
   const source = `${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}`;
   const labels = {
     "org.opencontainers.image.created": created,
@@ -245,6 +246,7 @@ async function publish() {
     "io.lithos.image.flavor": "full",
     "io.lithos.image.architecture": architecture,
     "io.lithos.image.ubuntu-version": requiredEnv("UBUNTU_VERSION"),
+    ...(runnerVersion ? { "io.lithos.image.runner-version": runnerVersion } : {}),
   };
   const config = Buffer.from(JSON.stringify({
     created,

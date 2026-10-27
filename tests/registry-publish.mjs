@@ -94,6 +94,7 @@ try {
         GITHUB_SHA: "test-sha",
         GITHUB_TOKEN: "test-token",
         IMAGE: "test/image",
+        IMAGE_VERSION: "test-version-bun1.4.4",
         REGISTRY: `http://127.0.0.1:${address.port}`,
         RUNNER_ENVIRONMENT_FILE: environmentFile,
         UBUNTU_VERSION: "24.04",
@@ -109,11 +110,13 @@ try {
   const [exitCode] = await once(child, "exit");
   assert.equal(exitCode, 0, stderr);
 
-  assert.deepEqual([...manifests.keys()].sort(), ["latest-arm64", "test-version-arm64"]);
+  assert.deepEqual([...manifests.keys()].sort(), ["latest-arm64", "test-version-bun1.4.4-arm64"]);
   assert.equal(uploads.length, 1);
   const config = JSON.parse(uploads[0]);
   assert.equal(config.architecture, "arm64");
   assert.equal(config.os, "linux");
+  assert.equal(config.config.Labels["org.opencontainers.image.version"], "test-version-bun1.4.4");
+  assert.equal(config.config.Labels["io.lithos.image.runner-version"], "test-version");
   assert.equal(config.config.Labels["io.lithos.image.architecture"], "arm64");
   assert.deepEqual(config.rootfs.diff_ids, [diffId]);
 

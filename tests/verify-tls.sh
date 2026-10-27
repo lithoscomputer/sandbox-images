@@ -45,7 +45,7 @@ node "$(dirname "$0")/verify-node-tls.cjs"
 # Match the Bun locations included in full filesystem captures. Test every
 # executable, including inactive tool-cache versions, before any publication.
 bun_roots=()
-for root in /usr/local /opt /usr/share /home/linuxbrew /home/runner/.bun; do
+for root in /usr /opt /home/linuxbrew /home/runner/.bun; do
   [[ ! -d "$root" ]] || bun_roots+=("$root")
 done
 if [[ ${#bun_roots[@]} -gt 0 ]]; then

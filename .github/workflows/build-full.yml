@@ -64,7 +64,7 @@ jobs:
           test -n "$version"
           test "$(dpkg --print-architecture)" = "$ARCHITECTURE"
           echo "IMAGE=${owner}/ubuntu-${MATRIX_UBUNTU}-full" >>"$GITHUB_ENV"
-          echo "IMAGE_VERSION=${version}" >>"$GITHUB_ENV"
+          echo "IMAGE_VERSION=${version}-bun1.4.4" >>"$GITHUB_ENV"
         env:
           MATRIX_UBUNTU: ${{ matrix.ubuntu }}
 

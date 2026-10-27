@@ -5,7 +5,7 @@ set -euo pipefail
 # the capture includes; changing PATH alone leaves vulnerable copies selectable.
 # Release: https://github.com/oven-sh/bun/releases/tag/bun-v1.4.4 (2026-10-22).
 roots=()
-for root in /usr/local /opt /usr/share /home/linuxbrew /home/runner/.bun; do
+for root in /usr /opt /home/linuxbrew /home/runner/.bun; do
   [[ ! -d "$root" ]] || roots+=("$root")
 done
 mapfile -d '' binaries < <(find "${roots[@]}" -type f -name bun -perm /111 -print0)
